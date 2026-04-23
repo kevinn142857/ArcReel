@@ -33,8 +33,9 @@ class GrokVideoBackend:
         *,
         api_key: str | None = None,
         model: str | None = None,
+        base_url: str | None = None,
     ):
-        self._client = create_grok_client(api_key=api_key)
+        self._client = create_grok_client(api_key=api_key, base_url=base_url)
         self._model = model or self.DEFAULT_MODEL
         self._capabilities: set[VideoCapability] = {
             VideoCapability.TEXT_TO_VIDEO,

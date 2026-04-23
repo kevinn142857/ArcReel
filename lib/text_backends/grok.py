@@ -24,8 +24,8 @@ DEFAULT_MODEL = "grok-4-1-fast-reasoning"
 class GrokTextBackend:
     """xAI Grok 文本生成后端。"""
 
-    def __init__(self, *, api_key: str | None = None, model: str | None = None):
-        self._client = create_grok_client(api_key=api_key)
+    def __init__(self, *, api_key: str | None = None, model: str | None = None, base_url: str | None = None):
+        self._client = create_grok_client(api_key=api_key, base_url=base_url)
         self._model = model or DEFAULT_MODEL
         self._capabilities: set[TextCapability] = {
             TextCapability.TEXT_GENERATION,

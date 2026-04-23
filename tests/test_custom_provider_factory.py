@@ -58,6 +58,22 @@ class TestOpenAIFormat:
         assert result.model == "sora-2"
         mock_cls.assert_called_once_with(api_key="sk-test", base_url="https://api.example.com/v1", model="sora-2")
 
+    @patch("lib.custom_provider.factory.OpenAIVideoBackend")
+    @patch("lib.custom_provider.factory.GrokRestVideoBackend")
+    def test_grok_video_backend_uses_grok_delegate(self, mock_grok_cls, mock_openai_cls):
+        provider = _make_provider(api_format="openai")
+        result = create_custom_backend(provider=provider, model_id="grok-imagine-video", media_type="video")
+
+        assert isinstance(result, CustomVideoBackend)
+        assert result.name == "custom-42"
+        assert result.model == "grok-imagine-video"
+        mock_grok_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://api.example.com/v1",
+            model="grok-imagine-video",
+        )
+        mock_openai_cls.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Google format
@@ -127,6 +143,66 @@ class TestGoogleFormat:
             api_key="sk-test",
             base_url="https://generativelanguage.googleapis.com/",
             model="gemini-3-flash",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Grok format
+# ---------------------------------------------------------------------------
+
+
+class TestGrokFormat:
+    @patch("lib.custom_provider.factory.OpenAITextBackend")
+    def test_text_backend(self, mock_cls):
+        provider = _make_provider(api_format="grok", base_url="https://api.x.ai")
+        result = create_custom_backend(provider=provider, model_id="grok-4-1-fast-reasoning", media_type="text")
+
+        assert isinstance(result, CustomTextBackend)
+        assert result.name == "custom-42"
+        assert result.model == "grok-4-1-fast-reasoning"
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://api.x.ai/v1",
+            model="grok-4-1-fast-reasoning",
+        )
+
+    @patch("lib.custom_provider.factory.OpenAIImageBackend")
+    def test_image_backend(self, mock_cls):
+        provider = _make_provider(api_format="grok", base_url="https://api.x.ai")
+        result = create_custom_backend(provider=provider, model_id="grok-imagine-image", media_type="image")
+
+        assert isinstance(result, CustomImageBackend)
+        assert result.name == "custom-42"
+        assert result.model == "grok-imagine-image"
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://api.x.ai/v1",
+            model="grok-imagine-image",
+        )
+
+    @patch("lib.custom_provider.factory.GrokRestVideoBackend")
+    def test_video_backend(self, mock_cls):
+        provider = _make_provider(api_format="grok", base_url="https://api.x.ai")
+        result = create_custom_backend(provider=provider, model_id="grok-imagine-video", media_type="video")
+
+        assert isinstance(result, CustomVideoBackend)
+        assert result.name == "custom-42"
+        assert result.model == "grok-imagine-video"
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://api.x.ai/v1",
+            model="grok-imagine-video",
+        )
+
+    @patch("lib.custom_provider.factory.OpenAITextBackend")
+    def test_empty_base_url_defaults_to_official_rest_endpoint(self, mock_cls):
+        provider = _make_provider(api_format="grok", base_url="")
+        create_custom_backend(provider=provider, model_id="grok-4-1-fast-reasoning", media_type="text")
+
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://api.x.ai/v1",
+            model="grok-4-1-fast-reasoning",
         )
 
 

@@ -10,6 +10,7 @@ Grok (xAI) 共享工具模块
 
 from __future__ import annotations
 
+from lib.config.url_utils import resolve_grok_api_host
 from lib.retry import BASE_RETRYABLE_ERRORS, _should_retry
 
 # gRPC 瞬态状态码（等价于 HTTP 429/500/502/503/504）
@@ -41,10 +42,16 @@ def grok_should_retry(exc: Exception) -> bool:
     return _should_retry(exc, BASE_RETRYABLE_ERRORS)
 
 
-def create_grok_client(*, api_key: str | None = None):
+def create_grok_client(*, api_key: str | None = None, base_url: str | None = None):
     """创建 xAI AsyncClient，统一校验和构造。"""
     import xai_sdk
 
     if not api_key:
         raise ValueError("XAI_API_KEY 未设置\n请在系统配置页中配置 xAI API Key")
-    return xai_sdk.AsyncClient(api_key=api_key)
+
+    kwargs: dict = {}
+    api_host, use_insecure_channel = resolve_grok_api_host(base_url)
+    if api_host:
+        kwargs["api_host"] = api_host
+        kwargs["use_insecure_channel"] = use_insecure_channel
+    return xai_sdk.AsyncClient(api_key=api_key, **kwargs)

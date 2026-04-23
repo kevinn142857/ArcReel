@@ -8,7 +8,7 @@ import type { CustomProviderInfo } from "@/types";
 
 function CustomStatusDot({ provider }: { provider: CustomProviderInfo }) {
   const { t } = useTranslation("dashboard");
-  const ready = provider.base_url && provider.api_key_masked;
+  const ready = !!provider.api_key_masked && (provider.api_format === "grok" || !!provider.base_url);
   const color = ready ? "bg-green-400" : "bg-gray-500";
   const label = ready ? t("status_connected") : t("status_unconfigured");
   return <span className={`h-2 w-2 shrink-0 rounded-full ${color}`} role="img" aria-label={label} />;

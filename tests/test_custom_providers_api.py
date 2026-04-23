@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -158,6 +158,30 @@ class TestCreateProvider:
         assert body["base_url"] == "https://newapi.example.com/v1"
         assert len(body["models"]) == 1
         assert body["models"][0]["model_id"] == "kling-v1"
+
+    def test_create_grok_provider(self, client: TestClient):
+        resp = client.post(
+            "/api/v1/custom-providers",
+            json={
+                "display_name": "Grok Provider",
+                "api_format": "grok",
+                "base_url": "",
+                "api_key": "xai-test-key-12345",
+                "models": [
+                    {
+                        "model_id": "grok-imagine-video",
+                        "display_name": "Grok Imagine Video",
+                        "media_type": "video",
+                        "is_default": True,
+                        "is_enabled": True,
+                    },
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["api_format"] == "grok"
+        assert body["models"][0]["model_id"] == "grok-imagine-video"
 
 
 class TestListProviders:
@@ -459,6 +483,34 @@ class TestDiscoverModels:
         # 确认 api_format 作为 newapi 透传
         assert mock_discover.call_args.kwargs["api_format"] == "newapi"
 
+    def test_discover_grok(self, client: TestClient):
+        fake_models = [
+            {
+                "model_id": "grok-imagine-video",
+                "display_name": "grok-imagine-video",
+                "media_type": "video",
+                "is_default": True,
+                "is_enabled": True,
+            },
+        ]
+        with patch(
+            "lib.custom_provider.discovery.discover_models",
+            new_callable=AsyncMock,
+            return_value=fake_models,
+        ) as mock_discover:
+            resp = client.post(
+                "/api/v1/custom-providers/discover",
+                json={
+                    "api_format": "grok",
+                    "base_url": "https://proxy.example.com",
+                    "api_key": "xai-discover-test",
+                },
+            )
+        assert resp.status_code == 200
+        assert resp.json()["models"][0]["model_id"] == "grok-imagine-video"
+        assert mock_discover.call_args.kwargs["api_format"] == "grok"
+        assert mock_discover.call_args.kwargs["base_url"] == "https://proxy.example.com"
+
     def test_discover_invalid_format(self, client: TestClient):
         with patch(
             "lib.custom_provider.discovery.discover_models",
@@ -553,6 +605,25 @@ class TestConnectionTest:
         assert body["success"] is True
         assert body["model_count"] == 42
         mock_openai_test.assert_called_once()
+
+    def test_grok_success(self, client: TestClient):
+        with patch(
+            "server.routers.custom_providers._test_grok",
+            return_value=custom_providers.ConnectionTestResponse(success=True, message="连接成功", model_count=7),
+        ) as mock_grok_test:
+            resp = client.post(
+                "/api/v1/custom-providers/test",
+                json={
+                    "api_format": "grok",
+                    "base_url": "https://proxy.example.com",
+                    "api_key": "xai-conn-test",
+                },
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["model_count"] == 7
+        mock_grok_test.assert_called_once_with("https://proxy.example.com", "xai-conn-test", ANY)
 
     def test_unsupported_format(self, client: TestClient):
         resp = client.post(

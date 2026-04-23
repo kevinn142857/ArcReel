@@ -1573,13 +1573,17 @@ class ProjectManager:
 
     # ==================== 项目概述生成 ====================
 
-    def _read_source_files(self, project_name: str, max_chars: int = 50000) -> str:
+    def _read_source_files(self, project_name: str, max_chars: int = 50000, max_bytes: int = 60000) -> str:
         """
         读取项目 source 目录下的所有 UTF-8 文本文件内容。
 
         非 UTF-8 文件会抛 SourceDecodeError —— 上传路径已统一规范化为 UTF-8，
         启动迁移已修历史项目；这里若仍遇到非 UTF-8，说明用户绕过 API 直接拷贝
         文件，需显式报错而非"源目录为空"误导。
+
+        `max_chars` 控制字符预算，`max_bytes` 控制 UTF-8 字节预算。
+        对中文项目和部分 OpenAI 兼容网关，字节预算通常更关键；否则即使字符数
+        没超，序列化到 JSON 请求体后也可能触发上游 body limit。
         """
         from .source_loader.errors import SourceDecodeError
 
@@ -1591,6 +1595,7 @@ class ProjectManager:
 
         contents = []
         total_chars = 0
+        total_bytes = 0
         for file_path in sorted(source_dir.glob("*")):
             if not (file_path.is_file() and file_path.suffix.lower() in [".txt", ".md"]):
                 continue
@@ -1605,12 +1610,26 @@ class ProjectManager:
                 ) from exc
 
             remaining = max_chars - total_chars
-            if remaining <= 0:
+            remaining_bytes = max_bytes - total_bytes
+            if remaining <= 0 or remaining_bytes <= 0:
                 break
             if len(content) > remaining:
                 content = content[:remaining]
-            contents.append(f"--- {file_path.name} ---\n{content}")
+            prefix = f"--- {file_path.name} ---\n"
+            prefix_bytes = len(prefix.encode("utf-8"))
+            if prefix_bytes >= remaining_bytes:
+                break
+
+            while content and len(content.encode("utf-8")) + prefix_bytes > remaining_bytes:
+                content = content[:-1]
+
+            if not content:
+                break
+
+            rendered = f"{prefix}{content}"
+            contents.append(rendered)
             total_chars += len(content)
+            total_bytes += len(rendered.encode("utf-8"))
 
         return "\n\n".join(contents)
 

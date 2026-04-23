@@ -621,3 +621,18 @@ def test_read_source_files_raises_on_non_utf8(tmp_path):
     with pytest.raises(SourceDecodeError) as exc_info:
         pm._read_source_files("demo")
     assert exc_info.value.filename == "broken.txt"
+
+
+def test_read_source_files_respects_utf8_byte_budget(tmp_path):
+    from lib.project_manager import ProjectManager
+
+    pm = ProjectManager(tmp_path)
+    project_dir = tmp_path / "demo"
+    source_dir = project_dir / "source"
+    source_dir.mkdir(parents=True)
+    (source_dir / "cn.txt").write_text("你" * 100, encoding="utf-8")
+
+    content = pm._read_source_files("demo", max_chars=50000, max_bytes=60)
+
+    assert len(content.encode("utf-8")) <= 60
+    assert content.startswith("--- cn.txt ---\n")

@@ -51,6 +51,14 @@ class TestProperties:
             with pytest.raises(ValueError, match="XAI_API_KEY"):
                 GrokTextBackend()
 
+    def test_base_url_forwarded_to_client_factory(self, mock_xai):
+        with patch("lib.text_backends.grok.create_grok_client") as mock_create:
+            from lib.text_backends.grok import GrokTextBackend
+
+            GrokTextBackend(api_key="k", base_url="https://proxy.example.com")
+
+        mock_create.assert_called_once_with(api_key="k", base_url="https://proxy.example.com")
+
 
 class TestGenerate:
     @pytest.fixture

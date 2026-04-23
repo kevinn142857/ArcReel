@@ -6,6 +6,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import pytest
 from openai import BadRequestError
 from pydantic import BaseModel
 
@@ -167,6 +168,88 @@ class TestOpenAITextBackend:
         assert result.text == "OK"
         assert result.input_tokens is None
         assert result.output_tokens is None
+
+    async def test_generate_sse_string_response_from_proxy(self):
+        """兼容错误返回 SSE 文本流的 OpenAI 兼容网关。"""
+        sse_response = """data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"hello "}}]}
+
+data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"world"},"finish_reason":"stop"}]}
+
+data: [DONE]
+"""
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=sse_response)
+
+        with patch("lib.openai_shared.AsyncOpenAI", return_value=mock_client):
+            from lib.text_backends.openai import OpenAITextBackend
+
+            backend = OpenAITextBackend(api_key="test-key")
+            result = await backend.generate(TextGenerationRequest(prompt="Say hello"))
+
+        assert result.text == "hello world"
+        assert result.input_tokens is None
+        assert result.output_tokens is None
+
+    async def test_generate_plain_string_response_from_proxy(self):
+        """兼容直接返回纯文本字符串的网关。"""
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value="just plain text")
+
+        with patch("lib.openai_shared.AsyncOpenAI", return_value=mock_client):
+            from lib.text_backends.openai import OpenAITextBackend
+
+            backend = OpenAITextBackend(api_key="test-key")
+            result = await backend.generate(TextGenerationRequest(prompt="Say hello"))
+
+        assert result.text == "just plain text"
+        assert result.input_tokens is None
+        assert result.output_tokens is None
+
+    async def test_generate_structured_output_from_sse_markdown_json(self):
+        """结构化输出被网关降级成 SSE markdown JSON 时，仍应提取出纯 JSON。"""
+        sse_response = """data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"```json\\n"}}]}
+
+data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"{\\"name\\": \\"Alice\\", \\"age\\": 30}\\n"}}]}
+
+data: {"id":"chatcmpl-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"```"},"finish_reason":"stop"}]}
+
+data: [DONE]
+"""
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=sse_response)
+
+        with patch("lib.openai_shared.AsyncOpenAI", return_value=mock_client):
+            from lib.text_backends.openai import OpenAITextBackend
+
+            backend = OpenAITextBackend(api_key="test-key")
+            result = await backend.generate(
+                TextGenerationRequest(
+                    prompt="Extract info",
+                    response_schema=_PersonSchema,
+                )
+            )
+
+        assert result.text == '{"name": "Alice", "age": 30}'
+
+    async def test_generate_raises_on_sse_error_response(self):
+        """SSE event:error 应转成正常异常，而不是把原始流文本往上游传。"""
+        sse_error = """event: error
+data: {"error":{"message":"prompt too large","type":"server_error"}}
+
+data: [DONE]
+"""
+
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=sse_error)
+
+        with patch("lib.openai_shared.AsyncOpenAI", return_value=mock_client):
+            from lib.text_backends.openai import OpenAITextBackend
+
+            backend = OpenAITextBackend(api_key="test-key")
+            with pytest.raises(RuntimeError, match="prompt too large"):
+                await backend.generate(TextGenerationRequest(prompt="Extract info", response_schema=_PersonSchema))
 
 
 def _make_bad_request_error(message: str = "Invalid schema") -> BadRequestError:

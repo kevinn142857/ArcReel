@@ -17,6 +17,14 @@ const MEDIA_LABELS: Record<string, string> = {
   video: "media_type_video",
 };
 
+function formatApiLabel(apiFormat: string): string {
+  if (apiFormat === "openai") return "OpenAI";
+  if (apiFormat === "google") return "Google";
+  if (apiFormat === "grok") return "Grok";
+  if (apiFormat === "newapi") return "NewAPI";
+  return apiFormat;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -109,7 +117,7 @@ export function CustomProviderDetail({ providerId, onDeleted, onSaved }: CustomP
   }
 
   // --- Read mode ---
-  const ready = provider.base_url && provider.api_key_masked;
+  const ready = !!provider.api_key_masked && (provider.api_format === "grok" || !!provider.base_url);
 
   return (
     <div className="flex h-full flex-col">
@@ -135,7 +143,7 @@ export function CustomProviderDetail({ providerId, onDeleted, onSaved }: CustomP
             </span>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {provider.api_format === "openai" ? "OpenAI" : "Google"} &middot; {provider.base_url}
+            {formatApiLabel(provider.api_format)} &middot; {provider.base_url || "-"}
           </p>
         </div>
       </div>
@@ -146,12 +154,12 @@ export function CustomProviderDetail({ providerId, onDeleted, onSaved }: CustomP
           <div className="flex justify-between">
             <span className="text-gray-500">{t("api_format_label")}</span>
             <span className="text-gray-300">
-              {provider.api_format === "openai" ? "OpenAI" : "Google"}
+              {formatApiLabel(provider.api_format)}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Base URL</span>
-            <span className="truncate pl-4 text-gray-300">{provider.base_url}</span>
+            <span className="truncate pl-4 text-gray-300">{provider.base_url || "-"}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">API Key</span>

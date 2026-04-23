@@ -15,12 +15,13 @@ import type {
 // Types
 // ---------------------------------------------------------------------------
 
-type ApiFormat = "openai" | "google" | "newapi";
+type ApiFormat = "openai" | "google" | "grok" | "newapi";
 type MediaType = "text" | "image" | "video";
 
 const API_FORMAT_OPTIONS: { value: ApiFormat; label: string }[] = [
   { value: "openai", label: "OpenAI" },
   { value: "google", label: "Google" },
+  { value: "grok", label: "Grok" },
   { value: "newapi", label: "NewAPI" },
 ];
 
@@ -147,7 +148,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
 
   // --- Discover models ---
   const handleDiscover = useCallback(async () => {
-    if (!baseUrl) {
+    if (apiFormat !== "grok" && !baseUrl) {
       showError(t("fill_base_url_first"));
       return;
     }
@@ -187,7 +188,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
 
   // --- Test connection ---
   const handleTest = useCallback(async () => {
-    if (!baseUrl) {
+    if (apiFormat !== "grok" && !baseUrl) {
       showError(t("fill_base_url_first"));
       return;
     }
@@ -210,7 +211,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
       showError(t("fill_provider_name"));
       return;
     }
-    if (!baseUrl.trim()) {
+    if (apiFormat !== "grok" && !baseUrl.trim()) {
       showError(t("fill_base_url"));
       return;
     }
@@ -293,8 +294,12 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
   const urlPreview = (() => {
     const trimmed = baseUrl.trim().replace(/\/+$/, "");
     if (!trimmed) return null;
-    if (apiFormat === "openai") {
+    if (apiFormat === "openai" || apiFormat === "newapi") {
       // OpenAI SDK 需要 /v1 后缀，后端自动补全
+      const base = trimmed.match(/\/v\d+$/) ? trimmed : `${trimmed}/v1`;
+      return `${base}/models`;
+    }
+    if (apiFormat === "grok") {
       const base = trimmed.match(/\/v\d+$/) ? trimmed : `${trimmed}/v1`;
       return `${base}/models`;
     }

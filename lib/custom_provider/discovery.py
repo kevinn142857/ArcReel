@@ -9,6 +9,7 @@ import asyncio
 import logging
 import re
 
+import httpx
 from google import genai
 from openai import OpenAI
 
@@ -28,6 +29,8 @@ _GENERATION_METHOD_MAP: dict[str, str] = {
     "generateImage": "image",
 }
 
+_GROK_FALLBACK_VIDEO_MODELS = ("grok-imagine-video",)
+
 
 def infer_media_type(model_id: str) -> str:
     """根据模型 ID 关键字推断 media_type。
@@ -46,7 +49,7 @@ async def discover_models(api_format: str, base_url: str | None, api_key: str) -
     """查询供应商的可用模型列表。
 
     Args:
-        api_format: API 格式 ("openai" | "google" | "newapi")
+        api_format: API 格式 ("openai" | "google" | "grok" | "newapi")
         base_url: 供应商 API 基础 URL
         api_key: API 密钥
 
@@ -60,8 +63,10 @@ async def discover_models(api_format: str, base_url: str | None, api_key: str) -
         return await _discover_openai(base_url, api_key)
     elif api_format == "google":
         return await _discover_google(base_url, api_key)
+    elif api_format == "grok":
+        return await _discover_grok_rest(base_url, api_key)
     else:
-        raise ValueError(f"不支持的 api_format: {api_format!r}，支持: 'openai', 'google', 'newapi'")
+        raise ValueError(f"不支持的 api_format: {api_format!r}，支持: 'openai', 'google', 'grok', 'newapi'")
 
 
 async def _discover_openai(base_url: str | None, api_key: str) -> list[dict]:
@@ -104,6 +109,62 @@ async def _discover_google(base_url: str | None, api_key: str) -> list[dict]:
         return _build_result_list(entries)
 
     return await asyncio.to_thread(_sync)
+
+
+async def _discover_grok_rest(base_url: str | None, api_key: str) -> list[dict]:
+    """通过 xAI REST API 发现 Grok 模型。
+
+    优先使用 xAI 的细分模型端点（language/image/video-generation-models），
+    若自定义网关仅实现 OpenAI 兼容的 ``/v1/models``，则回退到 OpenAI 兼容发现。
+    """
+
+    from lib.config.url_utils import ensure_openai_base_url
+
+    effective_base_url = ensure_openai_base_url(base_url) or "https://api.x.ai/v1"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    timeout = 30.0
+
+    async def _fetch_xai_models(endpoint: str, media_type: str) -> list[tuple[str, str]]:
+        url = f"{effective_base_url}/{endpoint}"
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 404:
+                raise httpx.HTTPStatusError("xAI endpoint not implemented", request=resp.request, response=resp)
+            resp.raise_for_status()
+            body = resp.json()
+
+        models = body.get("models")
+        if not isinstance(models, list):
+            raise RuntimeError(f"xAI 模型发现返回缺少 models 数组: {body}")
+
+        entries: list[tuple[str, str]] = []
+        for model in models:
+            model_id = model.get("id")
+            if isinstance(model_id, str) and model_id:
+                entries.append((model_id, media_type))
+            aliases = model.get("aliases") or []
+            if isinstance(aliases, list):
+                for alias in aliases:
+                    if isinstance(alias, str) and alias:
+                        entries.append((alias, media_type))
+        return entries
+
+    try:
+        language_entries, image_entries, video_entries = await asyncio.gather(
+            _fetch_xai_models("language-models", "text"),
+            _fetch_xai_models("image-generation-models", "image"),
+            _fetch_xai_models("video-generation-models", "video"),
+        )
+        entries = language_entries + image_entries + video_entries
+        if not entries:
+            entries = [(name, "video") for name in _GROK_FALLBACK_VIDEO_MODELS]
+        unique_entries = sorted({(model_id, media_type) for model_id, media_type in entries}, key=lambda e: e[0])
+        return _build_result_list(unique_entries)
+    except httpx.HTTPStatusError as exc:
+        if exc.response is None or exc.response.status_code != 404:
+            raise
+        logger.info("Grok 自定义网关未实现 xAI 专用模型端点，回退到 /v1/models 发现")
+        return await _discover_openai(effective_base_url, api_key)
 
 
 def _infer_from_generation_methods(model) -> str | None:

@@ -1,6 +1,11 @@
 """base_url 归一化工具函数测试。"""
 
-from lib.config.url_utils import ensure_google_base_url, ensure_openai_base_url, normalize_base_url
+from lib.config.url_utils import (
+    ensure_google_base_url,
+    ensure_openai_base_url,
+    normalize_base_url,
+    resolve_grok_api_host,
+)
 
 
 class TestNormalizeBaseUrl:
@@ -104,3 +109,23 @@ class TestEnsureGoogleBaseUrl:
             ensure_google_base_url("https://generativelanguage.googleapis.com/v1beta")
             == "https://generativelanguage.googleapis.com/"
         )
+
+
+class TestResolveGrokApiHost:
+    def test_empty_returns_none(self):
+        assert resolve_grok_api_host("") == (None, False)
+
+    def test_https_origin_maps_to_secure_host(self):
+        assert resolve_grok_api_host("https://api.x.ai") == ("api.x.ai", False)
+
+    def test_plain_host_preserves_port(self):
+        assert resolve_grok_api_host("proxy.example.com:8443") == ("proxy.example.com:8443", False)
+
+    def test_http_localhost_uses_insecure_channel(self):
+        assert resolve_grok_api_host("http://127.0.0.1:50051") == ("127.0.0.1:50051", True)
+
+    def test_plain_localhost_defaults_to_insecure_channel(self):
+        assert resolve_grok_api_host("localhost:50051") == ("localhost:50051", True)
+
+    def test_ignores_path_and_keeps_host(self):
+        assert resolve_grok_api_host("https://proxy.example.com/v1") == ("proxy.example.com", False)

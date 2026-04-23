@@ -72,7 +72,7 @@ class ModelInput(BaseModel):
 
 class CreateProviderRequest(BaseModel):
     display_name: str
-    api_format: str  # "openai" | "google" | "newapi"
+    api_format: str  # "openai" | "google" | "grok" | "newapi"
     base_url: str
     api_key: str
     models: list[ModelInput] = []
@@ -94,7 +94,7 @@ class FullUpdateProviderRequest(BaseModel):
 
 
 class ProviderConnectionRequest(BaseModel):
-    api_format: str
+    api_format: str  # "openai" | "google" | "grok" | "newapi"
     base_url: str
     api_key: str
 
@@ -493,6 +493,11 @@ async def _run_connection_test(
                 asyncio.to_thread(_test_google, base_url, api_key, _t),
                 timeout=_CONNECTION_TEST_TIMEOUT,
             )
+        elif api_format == "grok":
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_test_grok, base_url, api_key, _t),
+                timeout=_CONNECTION_TEST_TIMEOUT,
+            )
         elif api_format == "newapi":
             # NewAPI 的 /v1/models 是 OpenAI 兼容
             result = await asyncio.wait_for(
@@ -548,6 +553,23 @@ def _test_google(base_url: str, api_key: str, _t: Callable[..., str]) -> Connect
     client = genai.Client(api_key=api_key, http_options=http_options)
     pager = client.models.list()
     count = sum(1 for _ in pager)
+    return ConnectionTestResponse(
+        success=True,
+        message=_t("connection_success"),
+        model_count=count,
+    )
+
+
+def _test_grok(base_url: str, api_key: str, _t: Callable[..., str]) -> ConnectionTestResponse:
+    """通过 xAI REST 的 /v1/models 验证 Grok API Key。"""
+    from openai import OpenAI
+
+    from lib.config.url_utils import ensure_openai_base_url
+
+    effective_base_url = ensure_openai_base_url(base_url) or "https://api.x.ai/v1"
+    client = OpenAI(api_key=api_key, base_url=effective_base_url)
+    models = client.models.list()
+    count = sum(1 for _ in models)
     return ConnectionTestResponse(
         success=True,
         message=_t("connection_success"),

@@ -77,6 +77,14 @@ class TestInit:
             with pytest.raises(ValueError, match="XAI_API_KEY"):
                 GrokImageBackend(api_key="")
 
+    def test_base_url_forwarded_to_client_factory(self):
+        with patch("lib.image_backends.grok.create_grok_client") as mock_create:
+            from lib.image_backends.grok import GrokImageBackend
+
+            GrokImageBackend(api_key="fake-xai-key", base_url="https://proxy.example.com")
+
+        mock_create.assert_called_once_with(api_key="fake-xai-key", base_url="https://proxy.example.com")
+
 
 # ---------------------------------------------------------------------------
 # generate() T2I 测试

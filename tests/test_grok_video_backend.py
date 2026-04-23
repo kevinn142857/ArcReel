@@ -46,6 +46,14 @@ class TestGrokVideoBackend:
         backend = GrokVideoBackend(api_key="test-key", model="grok-imagine-video-2")
         assert backend.model == "grok-imagine-video-2"
 
+    @patch("lib.video_backends.grok.create_grok_client")
+    def test_base_url_forwarded_to_client_factory(self, mock_create):
+        from lib.video_backends.grok import GrokVideoBackend
+
+        GrokVideoBackend(api_key="test-key", base_url="https://proxy.example.com")
+
+        mock_create.assert_called_once_with(api_key="test-key", base_url="https://proxy.example.com")
+
     def test_missing_api_key_raises(self):
         from lib.video_backends.grok import GrokVideoBackend
 

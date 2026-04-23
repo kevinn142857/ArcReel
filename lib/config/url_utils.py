@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 
 
 def ensure_openai_base_url(url: str | None) -> str | None:
@@ -55,3 +56,40 @@ def ensure_google_base_url(url: str | None) -> str | None:
     if not url.endswith("/"):
         url += "/"
     return url
+
+
+def resolve_grok_api_host(url: str | None) -> tuple[str | None, bool]:
+    """将 Grok 自定义 base_url 解析为 xAI SDK 可接受的 api_host。
+
+    xAI SDK 使用 gRPC，接收的是 ``api_host`` 而不是 HTTP 风格的 ``base_url``。
+    这里兼容用户常见输入：
+
+    - ``https://api.x.ai`` -> (``api.x.ai``, False)
+    - ``http://localhost:50051`` -> (``localhost:50051``, True)
+    - ``https://proxy.example.com/v1`` -> (``proxy.example.com``, False)
+    - ``proxy.example.com:443`` -> (``proxy.example.com:443``, False)
+
+    Returns:
+        (api_host, use_insecure_channel)
+    """
+    if not url:
+        return None, False
+
+    raw = url.strip()
+    if not raw:
+        return None, False
+
+    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    if not parsed.hostname:
+        raise ValueError("Grok Base URL 必须包含主机名")
+
+    api_host = parsed.netloc
+    if not api_host:
+        raise ValueError("Grok Base URL 必须包含主机名")
+
+    if "://" in raw:
+        use_insecure_channel = parsed.scheme == "http"
+    else:
+        use_insecure_channel = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+
+    return api_host, use_insecure_channel

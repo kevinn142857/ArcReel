@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from lib.custom_provider.discovery import discover_models, infer_media_type
@@ -288,6 +289,109 @@ class TestDiscoverModelsGoogle:
             api_key="test-key",
             http_options={"base_url": "https://custom-endpoint.com/"},
         )
+
+
+# ---------------------------------------------------------------------------
+# discover_models — Grok format
+# ---------------------------------------------------------------------------
+
+
+class TestDiscoverModelsGrok:
+    async def test_basic_discovery(self):
+        """Grok 格式优先通过 xAI REST 专用模型端点发现模型。"""
+        language_resp = MagicMock()
+        language_resp.status_code = 200
+        language_resp.raise_for_status = MagicMock()
+        language_resp.json.return_value = {
+            "models": [
+                {"id": "grok-4-1-fast-reasoning", "aliases": ["grok-4-fast"]},
+            ]
+        }
+        image_resp = MagicMock()
+        image_resp.status_code = 200
+        image_resp.raise_for_status = MagicMock()
+        image_resp.json.return_value = {"models": [{"id": "grok-imagine-image"}]}
+        video_resp = MagicMock()
+        video_resp.status_code = 200
+        video_resp.raise_for_status = MagicMock()
+        video_resp.json.return_value = {"models": [{"id": "grok-imagine-video"}]}
+
+        mock_client = AsyncMockClient([language_resp, image_resp, video_resp])
+        with patch("lib.custom_provider.discovery.httpx.AsyncClient", return_value=mock_client):
+            result = await discover_models("grok", "https://api.x.ai", "xai-test-key")
+
+        by_id = {m["model_id"]: m for m in result}
+        assert by_id["grok-4-1-fast-reasoning"]["media_type"] == "text"
+        assert by_id["grok-4-fast"]["media_type"] == "text"
+        assert by_id["grok-imagine-image"]["media_type"] == "image"
+        assert by_id["grok-imagine-video"]["media_type"] == "video"
+        requested_urls = {call.args[0] for call in mock_client.get.call_args_list}
+        assert requested_urls == {
+            "https://api.x.ai/v1/language-models",
+            "https://api.x.ai/v1/image-generation-models",
+            "https://api.x.ai/v1/video-generation-models",
+        }
+
+    @patch("lib.custom_provider.discovery.OpenAI")
+    async def test_falls_back_to_openai_models_when_gateway_lacks_xai_endpoints(self, mock_openai_cls):
+        """自定义网关仅支持 /v1/models 时，应回退到 OpenAI 兼容发现。"""
+        request = httpx.Request("GET", "https://proxy.example.com/v1/language-models")
+        not_found = MagicMock()
+        not_found.status_code = 404
+        not_found.request = request
+        not_found.raise_for_status = MagicMock(
+            side_effect=httpx.HTTPStatusError(
+                "Not Found", request=request, response=httpx.Response(404, request=request)
+            )
+        )
+
+        mock_http_client = AsyncMockClient([not_found, not_found, not_found])
+        mock_openai = MagicMock()
+        mock_openai_cls.return_value = mock_openai
+        mock_openai.models.list.return_value = [
+            type("Model", (), {"id": "grok-4-fast"}),
+            type("Model", (), {"id": "grok-imagine-video"}),
+        ]
+
+        with patch("lib.custom_provider.discovery.httpx.AsyncClient", return_value=mock_http_client):
+            result = await discover_models("grok", "https://proxy.example.com", "xai-test-key")
+
+        assert [m["model_id"] for m in result] == ["grok-4-fast", "grok-imagine-video"]
+        mock_openai_cls.assert_called_once_with(api_key="xai-test-key", base_url="https://proxy.example.com/v1")
+
+    async def test_empty_rest_result_keeps_video_fallback(self):
+        language_resp = MagicMock()
+        language_resp.status_code = 200
+        language_resp.raise_for_status = MagicMock()
+        language_resp.json.return_value = {"models": []}
+        image_resp = MagicMock()
+        image_resp.status_code = 200
+        image_resp.raise_for_status = MagicMock()
+        image_resp.json.return_value = {"models": []}
+        video_resp = MagicMock()
+        video_resp.status_code = 200
+        video_resp.raise_for_status = MagicMock()
+        video_resp.json.return_value = {"models": []}
+
+        mock_client = AsyncMockClient([language_resp, image_resp, video_resp])
+        with patch("lib.custom_provider.discovery.httpx.AsyncClient", return_value=mock_client):
+            result = await discover_models("grok", "", "xai-test-key")
+
+        ids = [m["model_id"] for m in result]
+        assert ids == ["grok-imagine-video"]
+
+
+class AsyncMockClient:
+    def __init__(self, responses):
+        from unittest.mock import AsyncMock
+
+        self.get = AsyncMock(side_effect=responses)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return None
 
 
 # ---------------------------------------------------------------------------
