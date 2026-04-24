@@ -11,6 +11,7 @@ from lib.cost_calculator import cost_calculator
 from lib.grid.layout import calculate_grid_layout
 from lib.storyboard_sequence import get_storyboard_items, group_scenes_by_segment_break
 from lib.usage_tracker import UsageTracker
+from server.services.resolution_resolver import get_provider_fallback, resolve_resolution
 
 logger = logging.getLogger(__name__)
 
@@ -62,22 +63,32 @@ class CostEstimationService:
                 generate_audio = False
 
         # 项目级视频配置覆盖
-        project_video_provider = project_data.get("video_provider")
-        if project_video_provider:
-            video_provider = project_video_provider
-            # 项目级可能有自己的模型设置
-            project_video_settings = project_data.get("video_provider_settings", {}).get(project_video_provider, {})
-            if project_video_settings.get("model"):
-                video_model = project_video_settings["model"]
+        # 优先读新格式 video_backend（"provider_id/model_id"），兼容旧 video_provider 字段
+        project_video_backend = project_data.get("video_backend") or ""
+        registry_video_provider_id: str | None = None
+        if project_video_backend and "/" in project_video_backend:
+            _vb_provider, _vb_model = project_video_backend.split("/", 1)
+            registry_video_provider_id = _vb_provider
+            video_provider = _vb_provider
+            video_model = _vb_model
+        else:
+            project_video_provider = project_data.get("video_provider")
+            if project_video_provider:
+                video_provider = project_video_provider
+                registry_video_provider_id = project_video_provider
+                # 项目级可能有自己的模型设置
+                project_video_settings = project_data.get("video_provider_settings", {}).get(project_video_provider, {})
+                if project_video_settings.get("model"):
+                    video_model = project_video_settings["model"]
 
         # 项目级图片配置覆盖
         project_image_provider = project_data.get("image_provider")
         if project_image_provider:
             image_provider = project_image_provider
 
-        from server.services.generation_tasks import DEFAULT_VIDEO_RESOLUTION
-
-        video_resolution = DEFAULT_VIDEO_RESOLUTION.get(video_provider, "1080p")
+        _resolve_pid = registry_video_provider_id or video_provider
+        _resolved_resolution = await resolve_resolution(project_data, _resolve_pid, video_model or "")
+        video_resolution = _resolved_resolution or get_provider_fallback(video_provider)
 
         # Get actual costs
         actual_by_segment = await self._tracker.get_actual_costs_by_segment(project_name)

@@ -23,7 +23,7 @@ from lib.reference_video import render_prompt_for_backend
 from lib.reference_video.errors import MissingReferenceError, RequestPayloadTooLargeError
 from lib.script_models import ReferenceResource
 from lib.thumbnail import extract_video_thumbnail
-from server.services.generation_tasks import DEFAULT_VIDEO_RESOLUTION, get_media_generator, get_project_manager
+from server.services.generation_tasks import get_media_generator, get_project_manager
 
 logger = logging.getLogger(__name__)
 
@@ -235,13 +235,16 @@ async def execute_reference_video_task(
         duration_seconds=base_duration,
     )
 
-    # 5.1 解析 resolution（与分镜视频流 generation_tasks.py 保持同一优先级：
-    #     project.video_model_settings[model].resolution > DEFAULT_VIDEO_RESOLUTION[provider]）。
-    #     若直接回退到 MediaGenerator 的硬编码默认 "1080p"，会被 xai_sdk 拒绝
-    #     （VideoResolutionMap 仅支持 480p/720p）。
-    video_model_settings = project.get("video_model_settings") or {}
-    model_resolution_setting = video_model_settings.get(model_name, {}) if model_name else {}
-    resolution = model_resolution_setting.get("resolution") or DEFAULT_VIDEO_RESOLUTION.get(provider_name, "1080p")
+    # resolver key 必须是 registry provider_id（project.video_backend 的 "/" 前半段），
+    # 而非 backend.name（如 "gemini"）——与 generation_tasks.execute_video_task 保持一致。
+    from server.services.resolution_resolver import get_provider_fallback, resolve_resolution
+
+    video_backend_raw = project.get("video_backend") or ""
+    registry_provider_id = video_backend_raw.split("/", 1)[0] if "/" in video_backend_raw else provider_name
+
+    resolution = await resolve_resolution(project, registry_provider_id or provider_name, model_name or "")
+    if resolution is None:
+        resolution = get_provider_fallback(provider_name)
 
     # 6. 渲染 prompt（@→[图N]）。必须按 `constrained_refs` 的长度裁 `unit.references`
     #    再渲染，保证 [图N] 的 1-based 索引与 backend 实际收到的 reference_images

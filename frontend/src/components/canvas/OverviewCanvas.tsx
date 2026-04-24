@@ -119,7 +119,7 @@ export function OverviewCanvas({ projectName, projectData }: OverviewCanvasProps
     } catch (err) {
       useAppStore
         .getState()
-        .pushToast(`${tRef.current("regenerate_failed")}${errMsg(err)}`, "error");
+        .pushNotification(tRef.current("regenerate_failed", { message: errMsg(err) }), "error");
     } finally {
       setRegenerating(false);
     }
@@ -238,7 +238,7 @@ export function OverviewCanvas({ projectName, projectData }: OverviewCanvasProps
             )}
             {costError && (
               <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4">
-                <p className="text-sm text-red-400">{t("cost_estimate_failed")}{costError}</p>
+                <p className="text-sm text-red-400">{t("cost_estimate_failed", { message: costError })}</p>
               </div>
             )}
 

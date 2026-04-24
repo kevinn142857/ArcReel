@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ProviderModelSelect } from "@/components/ui/ProviderModelSelect";
-import { DEFAULT_DURATIONS, lookupSupportedDurations } from "@/utils/provider-models";
+import { DEFAULT_DURATIONS, lookupSupportedDurations, lookupResolutions } from "@/utils/provider-models";
+import { ResolutionPicker } from "./ResolutionPicker";
 import type { ProviderInfo } from "@/types/provider";
 import type { CustomProviderInfo } from "@/types/custom-provider";
 
@@ -22,6 +23,8 @@ export interface ModelConfigValue {
   textBackendOverview: string;
   textBackendStyle: string;
   defaultDuration: number | null; // null = auto
+  videoResolution: string | null;   // null = use backend default
+  imageResolution: string | null;   // null = use backend default
 }
 
 export interface ModelConfigSectionProps {
@@ -99,11 +102,30 @@ export function ModelConfigSection({
       ...value,
       videoBackend: next,
       defaultDuration: shouldReset ? null : value.defaultDuration,
+      videoResolution: null, // 切换 backend 时清空 resolution，避免残留无效值
     });
   };
 
   const handleDurationClick = (d: number | null) => {
     onChange({ ...value, defaultDuration: d });
+  };
+
+  const renderResolutionField = (backend: string, resolution: string | null, onResolutionChange: (v: string | null) => void) => {
+    const res = lookupResolutions(providers, backend, customProviders);
+    if (res.options.length === 0) return null;
+    return (
+      <div className="mt-3 flex items-center gap-2">
+        <span className="text-xs text-gray-400">{t("resolution_label")}</span>
+        <ResolutionPicker
+          mode={res.isCustom ? "combobox" : "select"}
+          options={res.options}
+          value={resolution}
+          onChange={onResolutionChange}
+          placeholder={t("resolution_default_placeholder")}
+          aria-label={t("resolution_label")}
+        />
+      </div>
+    );
   };
 
   return (
@@ -130,6 +152,10 @@ export function ModelConfigSection({
             fallbackValue={globalDefaults.video || undefined}
             aria-label={t("model_video")}
           />
+
+          {renderResolutionField(effectiveVideoBackend, value.videoResolution, (v) =>
+            onChange({ ...value, videoResolution: v }),
+          )}
 
           {/* Duration picker (nested inside video card) */}
           {showDuration && (
@@ -186,7 +212,7 @@ export function ModelConfigSection({
             value={value.imageBackend}
             options={options.imageBackends}
             providerNames={options.providerNames}
-            onChange={(next) => onChange({ ...value, imageBackend: next })}
+            onChange={(next) => onChange({ ...value, imageBackend: next, imageResolution: null })}
             allowDefault
             defaultLabel={t("use_global_default")}
             defaultHint={
@@ -197,6 +223,12 @@ export function ModelConfigSection({
             fallbackValue={globalDefaults.image || undefined}
             aria-label={t("model_image")}
           />
+
+          {renderResolutionField(
+            value.imageBackend || globalDefaults.image || "",
+            value.imageResolution,
+            (v) => onChange({ ...value, imageResolution: v }),
+          )}
         </div>
       )}
 

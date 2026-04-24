@@ -173,7 +173,7 @@ export function StudioCanvasRouter() {
       );
       useAppStore.getState().pushToast(tRef.current("storyboard_task_submitted_toast", { id: segmentId }), "success");
     } catch (err) {
-      useAppStore.getState().pushToast(tRef.current("generate_storyboard_failed", { message: errMsg(err) }), "error");
+      useAppStore.getState().pushNotification(tRef.current("generate_storyboard_failed", { message: errMsg(err) }), "error");
     }
   }, [currentProjectName, currentScripts]);
 
@@ -191,7 +191,7 @@ export function StudioCanvasRouter() {
       );
       useAppStore.getState().pushToast(tRef.current("video_task_submitted_toast", { id: segmentId }), "success");
     } catch (err) {
-      useAppStore.getState().pushToast(tRef.current("generate_video_failed", { message: errMsg(err) }), "error");
+      useAppStore.getState().pushNotification(tRef.current("generate_video_failed", { message: errMsg(err) }), "error");
     }
   }, [currentProjectName, currentScripts]);
 
@@ -243,7 +243,7 @@ export function StudioCanvasRouter() {
         .getState()
         .pushToast(tRef.current("character_task_submitted_toast", { name }), "success");
     } catch (err) {
-      useAppStore.getState().pushToast(tRef.current("submit_failed", { message: errMsg(err) }), "error");
+      useAppStore.getState().pushNotification(tRef.current("submit_failed", { message: errMsg(err) }), "error");
     }
   }, [currentProjectName, currentProjectData]);
 
@@ -290,7 +290,7 @@ export function StudioCanvasRouter() {
       await API.generateProjectScene(currentProjectName, name, currentProjectData?.scenes?.[name]?.description ?? "");
       useAppStore.getState().pushToast(tRef.current("scene_task_submitted_toast", { name }), "success");
     } catch (err) {
-      useAppStore.getState().pushToast(tRef.current("submit_failed", { message: errMsg(err) }), "error");
+      useAppStore.getState().pushNotification(tRef.current("submit_failed", { message: errMsg(err) }), "error");
     }
   }, [currentProjectName, currentProjectData]);
 
@@ -323,7 +323,7 @@ export function StudioCanvasRouter() {
       await API.generateProjectProp(currentProjectName, name, currentProjectData?.props?.[name]?.description ?? "");
       useAppStore.getState().pushToast(tRef.current("prop_task_submitted_toast", { name }), "success");
     } catch (err) {
-      useAppStore.getState().pushToast(tRef.current("submit_failed", { message: errMsg(err) }), "error");
+      useAppStore.getState().pushNotification(tRef.current("submit_failed", { message: errMsg(err) }), "error");
     }
   }, [currentProjectName, currentProjectData]);
 
@@ -345,7 +345,7 @@ export function StudioCanvasRouter() {
       const result = await API.generateGrid(currentProjectName, episode, scriptFile, sceneIds);
       useAppStore.getState().pushToast(result.message, "success");
     } catch (err) {
-      useAppStore.getState().pushToast(tRef.current("grid_generation_failed", { message: errMsg(err) }), "error");
+      useAppStore.getState().pushNotification(tRef.current("grid_generation_failed", { message: errMsg(err) }), "error");
     }
   }, [currentProjectName]);
 

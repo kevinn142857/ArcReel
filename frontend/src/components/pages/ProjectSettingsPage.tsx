@@ -73,6 +73,9 @@ export function ProjectSettingsPage() {
   const [aspectRatio, setAspectRatio] = useState<string>("");
   const [generationMode, setGenerationMode] = useState<GenerationMode>("storyboard");
   const [defaultDuration, setDefaultDuration] = useState<number | null>(null);
+  const [videoResolution, setVideoResolution] = useState<string | null>(null);
+  const [imageResolution, setImageResolution] = useState<string | null>(null);
+  const [modelSettings, setModelSettings] = useState<Record<string, { resolution: string | null }>>({});
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [customProviders, setCustomProviders] = useState<CustomProviderInfo[]>([]);
   const [saving, setSaving] = useState(false);
@@ -85,6 +88,8 @@ export function ProjectSettingsPage() {
     textScript: "", textOverview: "", textStyle: "",
     aspectRatio: "", generationMode: "storyboard" as GenerationMode,
     defaultDuration: null as number | null,
+    videoResolution: null as string | null,
+    imageResolution: null as string | null,
   });
   // 风格区独立保存，但"未保存就离开"也需被 isDirty 拦截。
   const initialStyleRef = useRef<StylePickerValue | null>(null);
@@ -141,6 +146,25 @@ export function ProjectSettingsPage() {
       setAspectRatio(ar);
       setGenerationMode(gm);
       setDefaultDuration(dd);
+
+      // model_settings 的 key 以 effective backend（override ‖ global default）读写，
+      // 与 handleSave 保持一致；legacy video_model_settings 作为旧项目兼容回退。
+      const defaultVideo = configRes.settings?.default_video_backend ?? "";
+      const defaultImage = configRes.settings?.default_image_backend ?? "";
+      const effectiveVb = vb || defaultVideo;
+      const effectiveIb = ib || defaultImage;
+      const ms = (project.model_settings ?? {}) as Record<string, { resolution: string | null }>;
+      const legacyVideo = (project.video_model_settings ?? {}) as Record<string, { resolution?: string | null }>;
+      const vModelId = effectiveVb && effectiveVb.includes("/") ? effectiveVb.split("/")[1] : effectiveVb;
+      const vRes: string | null =
+        (effectiveVb ? (ms[effectiveVb]?.resolution ?? null) : null) ||
+        (vModelId ? (legacyVideo[vModelId]?.resolution ?? null) : null) ||
+        null;
+      const iRes = effectiveIb ? (ms[effectiveIb]?.resolution ?? null) : null;
+      setVideoResolution(vRes);
+      setImageResolution(iRes);
+      setModelSettings(ms);
+
       const derivedStyle = deriveStyleValue(project, projectName);
       setStyleValue(derivedStyle);
       initialStyleRef.current = derivedStyle;
@@ -148,6 +172,7 @@ export function ProjectSettingsPage() {
         videoBackend: vb, imageBackend: ib, audioOverride: ao,
         textScript: ts, textOverview: to, textStyle: tst,
         aspectRatio: ar, generationMode: gm, defaultDuration: dd,
+        videoResolution: vRes, imageResolution: iRes,
       };
     }));
 
@@ -190,6 +215,8 @@ export function ProjectSettingsPage() {
     aspectRatio !== initialRef.current.aspectRatio ||
     generationMode !== initialRef.current.generationMode ||
     defaultDuration !== initialRef.current.defaultDuration ||
+    videoResolution !== initialRef.current.videoResolution ||
+    imageResolution !== initialRef.current.imageResolution ||
     styleIsDirty;
 
   useEffect(() => {
@@ -237,7 +264,7 @@ export function ProjectSettingsPage() {
       initialStyleRef.current = nextStyle;
       useAppStore.getState().pushToast(t("saved"), "success");
     } catch (e: unknown) {
-      useAppStore.getState().pushToast(errMsg(e, t("save_failed")), "error");
+      useAppStore.getState().pushToast(t("save_failed", { message: errMsg(e) }), "error");
     } finally {
       setSavingStyle(false);
     }
@@ -256,6 +283,18 @@ export function ProjectSettingsPage() {
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
+      // resolution 的 key 用 effective backend（override ‖ global default），
+      // 否则“跟随全局默认”路径下用户选的分辨率不会被写入。
+      const effectiveVideo = videoBackend || globalDefaults.video || "";
+      const effectiveImage = imageBackend || globalDefaults.image || "";
+      const newModelSettings: Record<string, { resolution: string | null }> = { ...modelSettings };
+      if (effectiveVideo) {
+        newModelSettings[effectiveVideo] = { resolution: videoResolution };
+      }
+      if (effectiveImage) {
+        newModelSettings[effectiveImage] = { resolution: imageResolution };
+      }
+
       await API.updateProject(projectName, {
         video_backend: videoBackend || null,
         image_backend: imageBackend || null,
@@ -266,19 +305,22 @@ export function ProjectSettingsPage() {
         aspect_ratio: aspectRatio || undefined,
         generation_mode: generationMode,
         default_duration: defaultDuration,
+        model_settings: newModelSettings,
       } as Record<string, unknown>);
+      setModelSettings(newModelSettings);
       initialRef.current = {
         videoBackend, imageBackend, audioOverride,
         textScript, textOverview, textStyle,
         aspectRatio, generationMode, defaultDuration,
+        videoResolution, imageResolution,
       };
       useAppStore.getState().pushToast(t("saved"), "success");
     } catch (e: unknown) {
-      useAppStore.getState().pushToast(errMsg(e, t("save_failed")), "error");
+      useAppStore.getState().pushToast(t("save_failed", { message: errMsg(e) }), "error");
     } finally {
       setSaving(false);
     }
-  }, [videoBackend, imageBackend, audioOverride, textScript, textOverview, textStyle, aspectRatio, generationMode, defaultDuration, projectName, t]);
+  }, [modelSettings, videoBackend, imageBackend, audioOverride, textScript, textOverview, textStyle, aspectRatio, generationMode, defaultDuration, videoResolution, imageResolution, projectName, t, globalDefaults.video, globalDefaults.image]);
 
   return (
     <div className="fixed inset-0 z-50 bg-gray-950 overflow-y-auto">
@@ -345,6 +387,8 @@ export function ProjectSettingsPage() {
                 textBackendOverview: textOverview,
                 textBackendStyle: textStyle,
                 defaultDuration,
+                videoResolution,
+                imageResolution,
               }}
               onChange={(next) => {
                 setVideoBackend(next.videoBackend);
@@ -353,6 +397,8 @@ export function ProjectSettingsPage() {
                 setTextOverview(next.textBackendOverview);
                 setTextStyle(next.textBackendStyle);
                 setDefaultDuration(next.defaultDuration);
+                setVideoResolution(next.videoResolution);
+                setImageResolution(next.imageResolution);
               }}
               providers={providers}
               customProviders={customProviders}

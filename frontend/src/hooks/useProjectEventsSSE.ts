@@ -1,4 +1,5 @@
 import { startTransition, useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
 import { API } from "@/api";
 import { useAppStore } from "@/stores/app-store";
@@ -114,12 +115,15 @@ function isWorkspaceEditing(): boolean {
 }
 
 export function useProjectEventsSSE(projectName?: string | null): void {
+  const { t } = useTranslation("dashboard");
+  const tRef = useRef(t);
+  tRef.current = t;
   const [, setLocation] = useLocation();
   const setCurrentProject = useProjectsStore((s) => s.setCurrentProject);
   const invalidateEntities = useAppStore((s) => s.invalidateEntities);
   const triggerScrollTo = useAppStore((s) => s.triggerScrollTo);
   const clearScrollTarget = useAppStore((s) => s.clearScrollTarget);
-  const pushToast = useAppStore((s) => s.pushToast);
+  const pushNotification = useAppStore((s) => s.pushNotification);
   const pushWorkspaceNotification = useAppStore((s) => s.pushWorkspaceNotification);
   const clearWorkspaceNotifications = useAppStore((s) => s.clearWorkspaceNotifications);
   const setAssistantToolActivitySuppressed = useAppStore(
@@ -171,7 +175,7 @@ export function useProjectEventsSSE(projectName?: string | null): void {
       const res = await API.getProject(projectName);
       setCurrentProject(projectName, res.project, res.scripts ?? {}, res.asset_fingerprints);
     } catch (err) {
-      pushToast(`同步项目变更失败: ${errMsg(err)}`, "warning");
+      pushNotification(tRef.current("project_sync_failed", { message: errMsg(err) }), "warning");
     } finally {
       refreshingRef.current = false;
     }
@@ -181,7 +185,7 @@ export function useProjectEventsSSE(projectName?: string | null): void {
       return;
     }
     flushQueuedFocus();
-  }, [flushQueuedFocus, projectName, pushToast, setCurrentProject]);
+  }, [flushQueuedFocus, projectName, pushNotification, setCurrentProject]);
 
   useEffect(() => {
     lastFingerprintRef.current = null;
@@ -247,7 +251,7 @@ export function useProjectEventsSSE(projectName?: string | null): void {
               if (!hasImportantChanges(group)) {
                 continue;
               }
-              pushToast(formatGroupedNotificationText(group), "success");
+              pushNotification(formatGroupedNotificationText(group), "success");
             }
           }
 
@@ -336,9 +340,9 @@ export function useProjectEventsSSE(projectName?: string | null): void {
     clearWorkspaceNotifications,
     invalidateEntities,
     projectName,
+    pushNotification,
     pushWorkspaceNotification,
     refreshProject,
-    pushToast,
     setAssistantToolActivitySuppressed,
     setLocation,
   ]);

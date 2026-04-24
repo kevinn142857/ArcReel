@@ -37,6 +37,7 @@ from lib.storyboard_sequence import (
     resolve_previous_storyboard_path,
 )
 from lib.thumbnail import extract_video_thumbnail
+from server.services.resolution_resolver import resolve_resolution
 
 pm = ProjectManager(PROJECT_ROOT / "projects")
 rate_limiter = get_shared_rate_limiter()
@@ -44,14 +45,6 @@ logger = logging.getLogger(__name__)
 
 # 按 (channel, provider_name, model) 缓存 Backend 实例，避免每次任务重建 API 客户端
 _backend_cache: dict[tuple[str, ...], Any] = {}
-
-# 各供应商默认视频分辨率
-DEFAULT_VIDEO_RESOLUTION: dict[str, str] = {
-    PROVIDER_GEMINI: "1080p",
-    PROVIDER_ARK: "720p",
-    PROVIDER_GROK: "720p",
-    PROVIDER_OPENAI: "720p",
-}
 
 # 新 provider_id → 旧 backend registry name 的映射
 _PROVIDER_ID_TO_BACKEND: dict[str, str] = {
@@ -81,6 +74,32 @@ def _parse_project_backend(raw: str | None) -> tuple[str | None, str | None]:
         provider, model = raw.split("/", 1)
         return provider, model
     return raw, None
+
+
+async def _resolve_effective_image_backend(project: dict, payload: dict | None) -> tuple[str, str]:
+    """payload 覆盖 > project.image_backend > resolver 全局默认。
+
+    返回 (provider_id, model_id)。供 resolve_resolution 构 key 使用，
+    确保 payload 缺失 image_provider 时也能命中 project.model_settings。
+    全局默认失败（未配置供应商）时返回空串，调用方按 None 处理。
+    """
+    if payload:
+        provider = payload.get("image_provider") or ""
+        if provider:
+            return provider, payload.get("image_model") or ""
+    proj_provider, proj_model = _parse_project_backend(project.get("image_backend"))
+    if proj_provider:
+        return proj_provider, proj_model or ""
+    from lib.config.resolver import ConfigResolver
+    from lib.db import async_session_factory
+
+    resolver = ConfigResolver(async_session_factory)
+    try:
+        async with resolver.session() as r:
+            provider, model = await r.default_image_backend()
+    except Exception:
+        return "", ""
+    return provider or "", model or ""
 
 
 async def _create_custom_backend(provider_name: str, model_id: str | None, media_type: str):
@@ -682,13 +701,16 @@ async def execute_storyboard_task(
     )
     aspect_ratio = get_aspect_ratio(project, "storyboards")
 
+    image_provider_id, image_model_id = await _resolve_effective_image_backend(project, payload)
+    image_size = await resolve_resolution(project, image_provider_id, image_model_id)
+
     _, version = await generator.generate_image_async(
         prompt=prompt_text,
         resource_type="storyboards",
         resource_id=resource_id,
         reference_images=reference_images,
         aspect_ratio=aspect_ratio,
-        image_size="1K",
+        image_size=image_size,
     )
 
     def _finalize():
@@ -774,11 +796,12 @@ async def execute_video_task(
         registry_provider_id = default_provider_id
         model_name = model_name or default_model_id
         provider_name = _PROVIDER_ID_TO_BACKEND.get(default_provider_id, default_provider_id)
-    # 将新 provider_id 映射为旧名称以查找分辨率
-    resolution_key = _PROVIDER_ID_TO_BACKEND.get(provider_name, provider_name)
-    video_model_settings = project.get("video_model_settings", {})
-    model_settings = video_model_settings.get(model_name, {}) if model_name else {}
-    resolution = model_settings.get("resolution") or DEFAULT_VIDEO_RESOLUTION.get(resolution_key, "1080p")
+
+    resolution = await resolve_resolution(
+        project,
+        registry_provider_id or provider_name,
+        model_name or "",
+    )
 
     # duration fallback: payload > project.default_duration > supported_durations[0] > 4
     duration_seconds = payload.get("duration_seconds") or project.get("default_duration")
@@ -877,13 +900,16 @@ async def execute_character_task(
     generator = await get_media_generator(project_name, payload=payload, user_id=user_id)
     aspect_ratio = get_aspect_ratio(project, "characters")
 
+    image_provider_id, image_model_id = await _resolve_effective_image_backend(project, payload)
+    image_size = await resolve_resolution(project, image_provider_id, image_model_id)
+
     _, version = await generator.generate_image_async(
         prompt=full_prompt,
         resource_type="characters",
         resource_id=resource_id,
         reference_images=reference_images,
         aspect_ratio=aspect_ratio,
-        image_size="1K",
+        image_size=image_size,
     )
 
     sheet_path = f"characters/{resource_id}.png"
@@ -945,12 +971,15 @@ async def execute_design_task(
     generator = await get_media_generator(project_name, payload=payload, user_id=user_id)
     aspect_ratio = get_aspect_ratio(project, bucket_key)
 
+    image_provider_id, image_model_id = await _resolve_effective_image_backend(project, payload)
+    image_size = await resolve_resolution(project, image_provider_id, image_model_id)
+
     _, version = await generator.generate_image_async(
         prompt=full_prompt,
         resource_type=bucket_key,
         resource_id=resource_id,
         aspect_ratio=aspect_ratio,
-        image_size="1K",
+        image_size=image_size,
     )
 
     sheet_path = f"{bucket_key}/{resource_id}.png"
@@ -1121,13 +1150,16 @@ async def execute_grid_task(
         project = await asyncio.to_thread(get_project_manager().load_project, project_name)
         aspect_ratio = payload.get("grid_aspect_ratio") or get_aspect_ratio(project, "storyboards")
 
+        image_provider_id, image_model_id = await _resolve_effective_image_backend(project, payload)
+        image_size = await resolve_resolution(project, image_provider_id, image_model_id) or "2K"  # 宫格图保底高分辨率
+
         image_path, version = await generator.generate_image_async(
             prompt=prompt_text,
             resource_type="grids",
             resource_id=resource_id,
             reference_images=reference_images,
             aspect_ratio=aspect_ratio,
-            image_size="2K",
+            image_size=image_size,
         )
 
         # e) Set grid_image_path, status to splitting

@@ -91,6 +91,8 @@ export function CreateProjectModal() {
     textBackendOverview: "",
     textBackendStyle: "",
     defaultDuration: null,
+    videoResolution: null,
+    imageResolution: null,
   });
 
   const [style, setStyle] = useState<WizardStep3Value>({
@@ -177,6 +179,18 @@ export function CreateProjectModal() {
   const handleCreate = async () => {
     setCreating(true);
     try {
+      // resolution 的 model_settings key 用 effective backend（项目覆盖 ‖ 全局默认），
+      // 否则用户在“跟随全局默认”路径下选的分辨率会丢失。
+      const effectiveVideo = models.videoBackend || step2Data?.globalDefaults.video || "";
+      const effectiveImage = models.imageBackend || step2Data?.globalDefaults.image || "";
+      const modelSettings: Record<string, { resolution: string }> = {};
+      if (effectiveVideo && models.videoResolution) {
+        modelSettings[effectiveVideo] = { resolution: models.videoResolution };
+      }
+      if (effectiveImage && models.imageResolution) {
+        modelSettings[effectiveImage] = { resolution: models.imageResolution };
+      }
+
       const resp = await API.createProject({
         title: basics.title.trim(),
         content_mode: basics.contentMode,
@@ -189,6 +203,7 @@ export function CreateProjectModal() {
         text_backend_script: models.textBackendScript || null,
         text_backend_overview: models.textBackendOverview || null,
         text_backend_style: models.textBackendStyle || null,
+        ...(Object.keys(modelSettings).length > 0 ? { model_settings: modelSettings } : {}),
       });
 
       // Upload style image if in custom mode
