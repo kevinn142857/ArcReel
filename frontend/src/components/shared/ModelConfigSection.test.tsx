@@ -22,6 +22,7 @@ const PROVIDERS: ProviderInfo[] = [
         default: false,
         supported_durations: [4, 6, 8],
         duration_resolution_constraints: {},
+        resolutions: [],
       },
     },
   },
@@ -42,6 +43,7 @@ const PROVIDERS: ProviderInfo[] = [
         default: false,
         supported_durations: [5, 8, 10],
         duration_resolution_constraints: {},
+        resolutions: [],
       },
     },
   },
@@ -61,6 +63,8 @@ const EMPTY_VALUE = {
   textBackendOverview: "",
   textBackendStyle: "",
   defaultDuration: null,
+  videoResolution: null,
+  imageResolution: null,
 } as const;
 
 describe("ModelConfigSection", () => {

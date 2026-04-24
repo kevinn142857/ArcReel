@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from pathlib import Path
-
-import httpx
 
 from lib.grok_shared import create_grok_client, grok_should_retry
 from lib.image_backends.base import (
     ImageCapability,
     ImageGenerationRequest,
     ImageGenerationResult,
+    download_image_to_path,
     image_to_base64_data_uri,
 )
 from lib.providers import PROVIDER_GROK
@@ -83,8 +81,9 @@ class GrokImageBackend:
             "prompt": request.prompt,
             "model": self._model,
             "aspect_ratio": _validate_aspect_ratio(request.aspect_ratio),
-            "resolution": _map_image_size_to_resolution(request.image_size),
         }
+        if request.image_size is not None:
+            generate_kwargs["resolution"] = request.image_size
 
         # I2I：将所有参考图转为 base64 data URI 列表
         if request.reference_images:
@@ -105,7 +104,7 @@ class GrokImageBackend:
             raise RuntimeError("Grok 图片生成被内容审核拒绝")
 
         # 下载图片到本地
-        await _download_image(response.url, request.output_path)
+        await download_image_to_path(response.url, request.output_path)
 
         logger.info("Grok 图片下载完成: %s", request.output_path)
 
@@ -115,23 +114,3 @@ class GrokImageBackend:
             model=self._model,
             image_uri=response.url,
         )
-
-
-def _map_image_size_to_resolution(image_size: str) -> str:
-    """将通用 image_size（如 '1K', '2K'）映射为 Grok resolution 参数。"""
-    mapping = {
-        "1K": "1k",
-        "2K": "2k",
-        "1k": "1k",
-        "2k": "2k",
-    }
-    return mapping.get(image_size, "1k")
-
-
-async def _download_image(url: str, output_path: Path, *, timeout: int = 60) -> None:
-    """从 URL 下载图片到本地文件。"""
-    await asyncio.to_thread(output_path.parent.mkdir, parents=True, exist_ok=True)
-    async with httpx.AsyncClient() as http_client:
-        resp = await http_client.get(url, timeout=timeout)
-        resp.raise_for_status()
-        await asyncio.to_thread(output_path.write_bytes, resp.content)

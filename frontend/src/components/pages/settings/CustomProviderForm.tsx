@@ -10,6 +10,8 @@ import type {
   CustomProviderModelInput,
   DiscoveredModel,
 } from "@/types";
+import { ResolutionPicker } from "@/components/shared/ResolutionPicker";
+import { IMAGE_STANDARD_RESOLUTIONS, VIDEO_STANDARD_RESOLUTIONS } from "@/utils/provider-models";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,6 +45,7 @@ interface ModelRow {
   price_input: string;
   price_output: string;
   currency: string;
+  resolution: string; // 空串 = null
 }
 
 function newModelRow(partial?: Partial<ModelRow>): ModelRow {
@@ -57,6 +60,7 @@ function newModelRow(partial?: Partial<ModelRow>): ModelRow {
     price_input: "",
     price_output: "",
     currency: "USD",
+    resolution: "",
     ...partial,
   };
 }
@@ -82,6 +86,7 @@ function existingToRow(m: CustomProviderInfo["models"][number]): ModelRow {
     price_input: m.price_input != null ? String(m.price_input) : "",
     price_output: m.price_output != null ? String(m.price_output) : "",
     currency: m.currency ?? "",
+    resolution: m.resolution ?? "",
   });
 }
 
@@ -96,6 +101,7 @@ function rowToInput(r: ModelRow): CustomProviderModelInput {
     ...(r.price_input ? { price_input: parseFloat(r.price_input) } : {}),
     ...(r.price_output ? { price_output: parseFloat(r.price_output) } : {}),
     ...(r.currency ? { currency: r.currency } : {}),
+    ...(r.resolution ? { resolution: r.resolution } : { resolution: null }),
   };
 }
 
@@ -253,7 +259,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
       }
       onSaved();
     } catch (e) {
-      showError(errMsg(e, t("save_failed")));
+      showError(t("save_failed", { message: errMsg(e) }));
     } finally {
       setSaving(false);
     }
@@ -559,6 +565,21 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
                         </>
                       )}
                     </div>
+
+                    {/* Resolution row */}
+                    {(m.media_type === "image" || m.media_type === "video") && (
+                      <div className="mt-2 flex items-center gap-2 pl-6">
+                        <span className="text-sm text-gray-400 whitespace-nowrap">{t("resolution_label")}</span>
+                        <ResolutionPicker
+                          mode="combobox"
+                          options={m.media_type === "image" ? IMAGE_STANDARD_RESOLUTIONS : VIDEO_STANDARD_RESOLUTIONS}
+                          value={m.resolution || null}
+                          onChange={(v) => updateModel(m.key, { resolution: v ?? "" })}
+                          placeholder={t("resolution_default_placeholder")}
+                          aria-label={t("resolution_label")}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
