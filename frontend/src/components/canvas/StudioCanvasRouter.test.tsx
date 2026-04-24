@@ -364,6 +364,14 @@ describe("StudioCanvasRouter", () => {
     });
     vi.spyOn(API, "updateSegment").mockRejectedValue(new Error("update failed"));
     vi.spyOn(API, "generateStoryboard").mockRejectedValue(new Error("storyboard failed"));
+    vi.spyOn(API, "getVideoCapabilities").mockResolvedValue({
+      provider_id: "grok",
+      model: "grok-imagine-video",
+      supported_durations: [4, 6, 8],
+      max_duration: 8,
+      max_reference_images: 7,
+      source: "registry",
+    });
     vi.spyOn(API, "generateVideo").mockRejectedValue(new Error("video failed"));
 
     renderAt("/episodes/1");
@@ -397,6 +405,50 @@ describe("StudioCanvasRouter", () => {
         4,
       );
       expect(useAppStore.getState().toast?.text).toContain("生成视频失败");
+    });
+  });
+
+  it("blocks timeline video generation when current duration is unsupported", async () => {
+    const script = makeScript();
+    if (script.content_mode !== "narration") {
+      throw new Error("expected narration script");
+    }
+    script.segments[0].duration_seconds = 8;
+
+    useProjectsStore.setState({
+      currentProjectName: "demo",
+      currentProjectData: makeProjectData(),
+      currentScripts: { "episode_1.json": script },
+    });
+
+    vi.spyOn(API, "getProject").mockResolvedValue({
+      project: makeProjectData(),
+      scripts: { "episode_1.json": script },
+    });
+    vi.spyOn(API, "getVideoCapabilities").mockResolvedValue({
+      provider_id: "custom-6",
+      model: "grok-imagine-video",
+      supported_durations: [6, 10, 12, 16, 20],
+      max_duration: 20,
+      max_reference_images: 7,
+      source: "custom",
+      api_format: "grok2api",
+    });
+    const generateVideoSpy = vi.spyOn(API, "generateVideo").mockResolvedValue({
+      success: true,
+      task_id: "task-1",
+      message: "已提交",
+    });
+
+    renderAt("/episodes/1");
+
+    fireEvent.click(screen.getByText("generate-video"));
+
+    await waitFor(() => {
+      expect(API.getVideoCapabilities).toHaveBeenCalledWith("demo");
+      expect(generateVideoSpy).not.toHaveBeenCalled();
+      expect(useAppStore.getState().toast?.text).toContain("仅支持 6/10/12/16/20 秒");
+      expect(useAppStore.getState().toast?.tone).toBe("error");
     });
   });
 });

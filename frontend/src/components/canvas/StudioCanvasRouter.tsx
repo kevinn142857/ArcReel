@@ -181,6 +181,31 @@ export function StudioCanvasRouter() {
     if (!currentProjectName || !currentScripts) return;
     const resolved = resolveSegmentPrompt(currentScripts, segmentId, "video_prompt", scriptFile);
     if (!resolved) return;
+    let supportedDurations = durationOptions;
+    if (!supportedDurations?.length) {
+      try {
+        const caps = await API.getVideoCapabilities(currentProjectName);
+        supportedDurations = caps.supported_durations;
+      } catch (err) {
+        useAppStore.getState().pushToast(
+          tRef.current("video_duration_validation_failed", { message: errMsg(err) }),
+          "error",
+        );
+        return;
+      }
+    }
+
+    if (supportedDurations.length > 0 && !supportedDurations.includes(resolved.duration)) {
+      useAppStore.getState().pushToast(
+        tRef.current("video_duration_unsupported_toast", {
+          durations: supportedDurations.join("/"),
+          duration: resolved.duration,
+        }),
+        "error",
+      );
+      return;
+    }
+
     try {
       await API.generateVideo(
         currentProjectName,
@@ -193,7 +218,7 @@ export function StudioCanvasRouter() {
     } catch (err) {
       useAppStore.getState().pushToast(tRef.current("generate_video_failed", { message: errMsg(err) }), "error");
     }
-  }, [currentProjectName, currentScripts]);
+  }, [currentProjectName, currentScripts, durationOptions]);
 
   // ---- Character CRUD callbacks ----
   const handleSaveCharacter = useCallback(async (

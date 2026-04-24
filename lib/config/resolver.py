@@ -26,6 +26,7 @@ from lib.config.service import (
     ConfigService,
 )
 from lib.custom_provider import is_custom_provider, parse_provider_id
+from lib.custom_provider.capabilities import coalesce_supported_durations
 from lib.db.repositories.credential_repository import CredentialRepository
 from lib.db.repositories.custom_provider_repo import CustomProviderRepository
 from lib.env_init import PROJECT_ROOT
@@ -253,6 +254,9 @@ class ConfigResolver:
             except ValueError as exc:
                 raise ValueError(f"invalid custom provider_id: {provider_id}") from exc
             repo = CustomProviderRepository(session)
+            provider = await repo.get_provider(db_pid)
+            if provider is None:
+                raise ValueError(f"custom provider not found: {provider_id}")
             model = await repo.get_model_by_ids(db_pid, model_id)
             if model is None:
                 raise ValueError(f"custom model not found: {provider_id}/{model_id}")
@@ -267,8 +271,17 @@ class ConfigResolver:
                     ) from exc
                 if isinstance(parsed, list):
                     supported_durations = [int(d) for d in parsed]
+            inferred_durations = coalesce_supported_durations(
+                supported_durations or None,
+                api_format=provider.api_format,
+                model_id=model_id,
+                media_type=getattr(model, "media_type", None),
+            )
+            supported_durations = list(inferred_durations or [])
+            api_format = provider.api_format
         else:
             source = "registry"
+            api_format = None
             provider_meta = PROVIDER_REGISTRY.get(provider_id)
             if provider_meta is None:
                 raise ValueError(f"provider not in PROVIDER_REGISTRY: {provider_id}")
@@ -307,6 +320,7 @@ class ConfigResolver:
             "max_duration": max_duration,
             "max_reference_images": max_reference_images,
             "source": source,
+            "api_format": api_format,
             "default_duration": default_duration,
             "content_mode": content_mode,
             "generation_mode": generation_mode,

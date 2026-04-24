@@ -324,6 +324,8 @@ export default {
   'generate_storyboard_failed': 'Failed to generate storyboard: {{message}}',
   'video_task_submitted_toast': 'Video generation task for "{{id}}" submitted',
   'generate_video_failed': 'Failed to generate video: {{message}}',
+  'video_duration_validation_failed': 'Failed to validate video duration: {{message}}',
+  'video_duration_unsupported_toast': 'The current video model only supports {{durations}} seconds, but this segment is {{duration}} seconds',
   'character_updated_toast': 'Character "{{name}}" updated',
   'update_character_failed': 'Failed to update character: {{message}}',
   'character_task_submitted_toast': 'Character generation task for "{{name}}" submitted',

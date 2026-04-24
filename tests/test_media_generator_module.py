@@ -86,6 +86,9 @@ class _FakeConfigResolver:
     async def video_generate_audio(self, project_name=None):
         return self._video_generate_audio
 
+    async def video_capabilities(self, project_name=None):
+        raise ValueError("unsupported in fake")
+
 
 def _build_generator(tmp_path: Path) -> MediaGenerator:
     gen = object.__new__(MediaGenerator)
@@ -200,3 +203,32 @@ class TestMediaGenerator:
             resource_id="E1S05",
         )
         assert gen.usage_tracker.started[-1]["generate_audio"] is True
+
+    @pytest.mark.asyncio
+    async def test_generate_video_async_rejects_unsupported_custom_duration_before_backend(self, tmp_path):
+        gen = _build_generator(tmp_path)
+
+        class _StrictConfig(_FakeConfigResolver):
+            async def video_capabilities(self, project_name=None):
+                return {
+                    "provider_id": "custom-6",
+                    "model": "grok-imagine-video",
+                    "supported_durations": [6, 10, 12, 16, 20],
+                    "max_duration": 20,
+                    "source": "custom",
+                    "api_format": "grok2api",
+                }
+
+        gen._config = _StrictConfig(video_generate_audio=True)
+
+        with pytest.raises(ValueError, match="grok2api 视频时长仅支持 6/10/12/16/20 秒，当前为 8 秒"):
+            await gen.generate_video_async(
+                prompt="p",
+                resource_type="videos",
+                resource_id="E1S06",
+                duration_seconds="8",
+            )
+
+        assert gen._video_backend.calls == []
+        assert gen.usage_tracker.finished[-1]["status"] == "failed"
+        assert "grok2api 视频时长仅支持 6/10/12/16/20 秒" in gen.usage_tracker.finished[-1]["error_message"]

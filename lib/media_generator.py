@@ -24,7 +24,9 @@ if TYPE_CHECKING:
     from lib.config.resolver import ConfigResolver
     from lib.image_backends.base import ImageBackend
 
+from lib.custom_provider.capabilities import coalesce_supported_durations
 from lib.db.base import DEFAULT_USER_ID
+from lib.error_utils import format_exception_message
 from lib.gemini_shared import RateLimiter
 from lib.usage_tracker import UsageTracker
 from lib.version_manager import VersionManager
@@ -124,6 +126,32 @@ class MediaGenerator:
     def _ensure_parent_dir(self, output_path: Path) -> None:
         """确保输出目录存在"""
         output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    async def _validate_custom_video_duration(self, duration_seconds: int) -> None:
+        """对自定义供应商执行严格时长校验，避免无效请求打到上游。"""
+        if self._config is None or not hasattr(self._config, "video_capabilities"):
+            return
+
+        try:
+            caps = await self._config.video_capabilities(self.project_name)
+        except Exception as exc:
+            logger.info("无法解析 video_capabilities，跳过自定义供应商时长校验: %s", exc)
+            return
+
+        if caps.get("source") != "custom":
+            return
+
+        supported_durations = coalesce_supported_durations(
+            caps.get("supported_durations"),
+            api_format=caps.get("api_format"),
+            model_id=caps.get("model"),
+        )
+        if not supported_durations or duration_seconds in supported_durations:
+            return
+
+        provider_label = str(caps.get("api_format") or caps.get("provider_id") or "custom provider")
+        supported_label = "/".join(str(d) for d in supported_durations)
+        raise ValueError(f"{provider_label} 视频时长仅支持 {supported_label} 秒，当前为 {duration_seconds} 秒")
 
     def generate_image(
         self,
@@ -259,7 +287,7 @@ class MediaGenerator:
             await self.usage_tracker.finish_call(
                 call_id=call_id,
                 status="failed",
-                error_message=str(e),
+                error_message=format_exception_message(e),
             )
             raise
 
@@ -407,6 +435,8 @@ class MediaGenerator:
         try:
             from lib.video_backends.base import VideoGenerationRequest
 
+            await self._validate_custom_video_duration(duration_int)
+
             # Three-level fallback based on backend video capabilities
             actual_end_image = None
             actual_reference_images = reference_images
@@ -463,7 +493,7 @@ class MediaGenerator:
             await self.usage_tracker.finish_call(
                 call_id=call_id,
                 status="failed",
-                error_message=str(e),
+                error_message=format_exception_message(e),
             )
             raise
 

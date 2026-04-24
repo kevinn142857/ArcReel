@@ -15,13 +15,14 @@ import type {
 // Types
 // ---------------------------------------------------------------------------
 
-type ApiFormat = "openai" | "google" | "grok" | "newapi";
+type ApiFormat = "openai" | "google" | "grok" | "grok2api" | "newapi";
 type MediaType = "text" | "image" | "video";
 
 const API_FORMAT_OPTIONS: { value: ApiFormat; label: string }[] = [
   { value: "openai", label: "OpenAI" },
   { value: "google", label: "Google" },
   { value: "grok", label: "Grok" },
+  { value: "grok2api", label: "Grok2API" },
   { value: "newapi", label: "NewAPI" },
 ];
 
@@ -146,9 +147,11 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
     return models.filter((m) => m.model_id.toLowerCase().includes(q));
   }, [models, modelFilter]);
 
+  const baseUrlRequired = apiFormat !== "grok";
+
   // --- Discover models ---
   const handleDiscover = useCallback(async () => {
-    if (apiFormat !== "grok" && !baseUrl) {
+    if (baseUrlRequired && !baseUrl) {
       showError(t("fill_base_url_first"));
       return;
     }
@@ -184,11 +187,11 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
     } finally {
       setDiscovering(false);
     }
-  }, [apiFormat, baseUrl, apiKey, showError, t]);
+  }, [apiFormat, baseUrlRequired, baseUrl, apiKey, showError, t]);
 
   // --- Test connection ---
   const handleTest = useCallback(async () => {
-    if (apiFormat !== "grok" && !baseUrl) {
+    if (baseUrlRequired && !baseUrl) {
       showError(t("fill_base_url_first"));
       return;
     }
@@ -202,7 +205,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
     } finally {
       setTesting(false);
     }
-  }, [apiFormat, baseUrl, apiKey, showError, t]);
+  }, [apiFormat, baseUrlRequired, baseUrl, apiKey, showError, t]);
 
   // --- Save ---
   const handleSave = useCallback(async () => {
@@ -211,7 +214,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
       showError(t("fill_provider_name"));
       return;
     }
-    if (apiFormat !== "grok" && !baseUrl.trim()) {
+    if (baseUrlRequired && !baseUrl.trim()) {
       showError(t("fill_base_url"));
       return;
     }
@@ -254,7 +257,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
     } finally {
       setSaving(false);
     }
-  }, [displayName, apiFormat, baseUrl, apiKey, models, isEdit, existing, onSaved, showError, t]);
+  }, [displayName, apiFormat, baseUrl, apiKey, models, isEdit, existing, onSaved, showError, t, baseUrlRequired]);
 
   // --- Model row helpers ---
   const updateModel = (key: string, patch: Partial<ModelRow>) => {
@@ -294,7 +297,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
   const urlPreview = (() => {
     const trimmed = baseUrl.trim().replace(/\/+$/, "");
     if (!trimmed) return null;
-    if (apiFormat === "openai" || apiFormat === "newapi") {
+    if (apiFormat === "openai" || apiFormat === "newapi" || apiFormat === "grok2api") {
       // OpenAI SDK 需要 /v1 后缀，后端自动补全
       const base = trimmed.match(/\/v\d+$/) ? trimmed : `${trimmed}/v1`;
       return `${base}/models`;
@@ -356,7 +359,7 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
         {/* Base URL */}
         <div>
           <label htmlFor="cp-url" className="mb-1.5 block text-sm text-gray-400">
-            {t("base_url")} <span className="text-red-400">*</span>
+            {t("base_url")} {baseUrlRequired && <span className="text-red-400">*</span>}
           </label>
           <input
             id="cp-url"

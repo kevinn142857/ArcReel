@@ -19,6 +19,7 @@ import type {
   AssistantSnapshot,
   SkillInfo,
   ProjectOverview,
+  ProjectVideoCapabilities,
   ProjectChangeBatchPayload,
   ProjectEventSnapshotPayload,
   GetSystemConfigResponse,
@@ -340,6 +341,12 @@ class API {
     asset_fingerprints?: Record<string, number>;
   }> {
     return this.request(`/projects/${encodeURIComponent(name)}`);
+  }
+
+  static async getVideoCapabilities(
+    name: string
+  ): Promise<ProjectVideoCapabilities> {
+    return this.request(`/projects/${encodeURIComponent(name)}/video-capabilities`);
   }
 
   static async updateProject(

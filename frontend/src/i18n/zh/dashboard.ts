@@ -325,6 +325,8 @@ export default {
   'generate_storyboard_failed': '生成分镜失败: {{message}}',
   'video_task_submitted_toast': '已提交视频 "{{id}}" 生成任务',
   'generate_video_failed': '生成视频失败: {{message}}',
+  'video_duration_validation_failed': '校验视频时长失败: {{message}}',
+  'video_duration_unsupported_toast': '当前视频模型仅支持 {{durations}} 秒，当前片段为 {{duration}} 秒',
   'character_updated_toast': '角色 "{{name}}" 已更新',
   'update_character_failed': '更新角色失败: {{message}}',
   'character_task_submitted_toast': '角色 "{{name}}" 生成任务已提交',

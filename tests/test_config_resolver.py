@@ -536,3 +536,44 @@ class TestVideoCapabilities:
         assert caps["source"] == "custom"
         assert caps["supported_durations"] == [5, 10]
         assert caps["max_duration"] == 10
+
+    async def test_custom_grok2api_provider_infers_supported_durations_when_db_missing(self):
+        """grok2api/grok-imagine-video 在 DB 未显式配置时也应返回固定时长。"""
+        from lib.db.models.custom_provider import CustomProvider, CustomProviderModel
+
+        resolver = ConfigResolver.__new__(ConfigResolver)
+        fake_svc = _FakeConfigService(settings={})
+        factory, engine = await _make_session()
+        try:
+            async with factory() as session:
+                provider = CustomProvider(
+                    display_name="Grok2API Gateway",
+                    api_format="grok2api",
+                    base_url="http://127.0.0.1:8000",
+                    api_key="xxx",
+                )
+                session.add(provider)
+                await session.flush()
+                model = CustomProviderModel(
+                    provider_id=provider.id,
+                    model_id="grok-imagine-video",
+                    display_name="Grok Imagine Video",
+                    media_type="video",
+                    supported_durations=None,
+                )
+                session.add(model)
+                await session.flush()
+
+                project_backend = f"custom-{provider.id}/grok-imagine-video"
+                with patch("lib.config.resolver.get_project_manager") as mock_pm:
+                    mock_pm.return_value.load_project.return_value = {
+                        "video_backend": project_backend,
+                    }
+                    caps = await resolver._resolve_video_capabilities(fake_svc, session, "demo")
+        finally:
+            await engine.dispose()
+
+        assert caps["source"] == "custom"
+        assert caps["api_format"] == "grok2api"
+        assert caps["supported_durations"] == [6, 10, 12, 16, 20]
+        assert caps["max_duration"] == 20

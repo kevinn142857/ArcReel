@@ -74,6 +74,36 @@ class TestOpenAIFormat:
         )
         mock_openai_cls.assert_not_called()
 
+    @patch("lib.custom_provider.factory.OpenAIImageBackend")
+    @patch("lib.custom_provider.factory.JimengImageBackend")
+    def test_jimeng_image_backend_uses_jimeng_delegate(self, mock_jimeng_cls, mock_openai_cls):
+        provider = _make_provider(api_format="openai", base_url="http://192.168.100.1:8000")
+        result = create_custom_backend(provider=provider, model_id="jimeng-4.6", media_type="image")
+
+        assert isinstance(result, CustomImageBackend)
+        assert result.model == "jimeng-4.6"
+        mock_jimeng_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="http://192.168.100.1:8000/v1",
+            model="jimeng-4.6",
+        )
+        mock_openai_cls.assert_not_called()
+
+    @patch("lib.custom_provider.factory.OpenAIVideoBackend")
+    @patch("lib.custom_provider.factory.JimengVideoBackend")
+    def test_jimeng_video_backend_uses_jimeng_delegate(self, mock_jimeng_cls, mock_openai_cls):
+        provider = _make_provider(api_format="openai", base_url="http://192.168.100.1:8000")
+        result = create_custom_backend(provider=provider, model_id="jimeng-video-3.5-pro", media_type="video")
+
+        assert isinstance(result, CustomVideoBackend)
+        assert result.model == "jimeng-video-3.5-pro"
+        mock_jimeng_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="http://192.168.100.1:8000/v1",
+            model="jimeng-video-3.5-pro",
+        )
+        mock_openai_cls.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Google format
@@ -166,6 +196,37 @@ class TestGrokFormat:
             model="grok-4-1-fast-reasoning",
         )
 
+
+class TestGrok2APIFormat:
+    @patch("lib.custom_provider.factory.OpenAITextBackend")
+    def test_text_backend(self, mock_cls):
+        provider = _make_provider(api_format="grok2api", base_url="http://127.0.0.1:8000")
+        result = create_custom_backend(provider=provider, model_id="grok-4-fast", media_type="text")
+
+        assert isinstance(result, CustomTextBackend)
+        assert result.name == "custom-42"
+        assert result.model == "grok-4-fast"
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="http://127.0.0.1:8000/v1",
+            model="grok-4-fast",
+        )
+
+    @patch("lib.custom_provider.factory.GrokRestVideoBackend")
+    def test_video_backend_prefers_proxy_endpoint(self, mock_cls):
+        provider = _make_provider(api_format="grok2api", base_url="http://127.0.0.1:8000")
+        result = create_custom_backend(provider=provider, model_id="grok-imagine-video", media_type="video")
+
+        assert isinstance(result, CustomVideoBackend)
+        assert result.name == "custom-42"
+        assert result.model == "grok-imagine-video"
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="http://127.0.0.1:8000/v1",
+            model="grok-imagine-video",
+            prefer_proxy_endpoint=True,
+        )
+
     @patch("lib.custom_provider.factory.OpenAIImageBackend")
     def test_image_backend(self, mock_cls):
         provider = _make_provider(api_format="grok", base_url="https://api.x.ai")
@@ -193,6 +254,40 @@ class TestGrokFormat:
             base_url="https://api.x.ai/v1",
             model="grok-imagine-video",
         )
+
+    @patch("lib.custom_provider.factory.OpenAIImageBackend")
+    @patch("lib.custom_provider.factory.JimengImageBackend")
+    def test_jimeng_image_backend_uses_jimeng_delegate(self, mock_jimeng_cls, mock_openai_cls):
+        provider = _make_provider(api_format="grok", base_url="http://192.168.100.1:8000")
+        result = create_custom_backend(provider=provider, model_id="jimeng-4.6", media_type="image")
+
+        assert isinstance(result, CustomImageBackend)
+        assert result.model == "jimeng-4.6"
+        mock_jimeng_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="http://192.168.100.1:8000/v1",
+            model="jimeng-4.6",
+        )
+        mock_openai_cls.assert_not_called()
+
+    @patch("lib.custom_provider.factory.GrokRestVideoBackend")
+    @patch("lib.custom_provider.factory.JimengVideoBackend")
+    def test_jimeng_video_backend_uses_jimeng_delegate(self, mock_jimeng_cls, mock_grok_cls):
+        provider = _make_provider(api_format="grok", base_url="http://192.168.100.1:8000")
+        result = create_custom_backend(
+            provider=provider,
+            model_id="jimeng-video-seedance-2.0",
+            media_type="video",
+        )
+
+        assert isinstance(result, CustomVideoBackend)
+        assert result.model == "jimeng-video-seedance-2.0"
+        mock_jimeng_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="http://192.168.100.1:8000/v1",
+            model="jimeng-video-seedance-2.0",
+        )
+        mock_grok_cls.assert_not_called()
 
     @patch("lib.custom_provider.factory.OpenAITextBackend")
     def test_empty_base_url_defaults_to_official_rest_endpoint(self, mock_cls):
@@ -303,6 +398,36 @@ class TestNewAPIFormat:
             base_url="https://newapi.example.com/v1",
             model="kling-v1",
         )
+
+    @patch("lib.custom_provider.factory.OpenAIImageBackend")
+    @patch("lib.custom_provider.factory.JimengImageBackend")
+    def test_jimeng_image_backend_uses_jimeng_delegate(self, mock_jimeng_cls, mock_openai_cls):
+        provider = _make_provider(api_format="newapi", base_url="http://192.168.100.1:8000")
+        result = create_custom_backend(provider=provider, model_id="jimeng-4.6", media_type="image")
+
+        assert isinstance(result, CustomImageBackend)
+        assert result.model == "jimeng-4.6"
+        mock_jimeng_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="http://192.168.100.1:8000/v1",
+            model="jimeng-4.6",
+        )
+        mock_openai_cls.assert_not_called()
+
+    @patch("lib.custom_provider.factory.NewAPIVideoBackend")
+    @patch("lib.custom_provider.factory.JimengVideoBackend")
+    def test_jimeng_video_backend_uses_jimeng_delegate(self, mock_jimeng_cls, mock_newapi_cls):
+        provider = _make_provider(api_format="newapi", base_url="http://192.168.100.1:8000")
+        result = create_custom_backend(provider=provider, model_id="seedance-2.0-pro", media_type="video")
+
+        assert isinstance(result, CustomVideoBackend)
+        assert result.model == "seedance-2.0-pro"
+        mock_jimeng_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="http://192.168.100.1:8000/v1",
+            model="seedance-2.0-pro",
+        )
+        mock_newapi_cls.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -28,7 +28,7 @@ from lib.prompt_utils import (
     is_structured_video_prompt,
     video_prompt_to_yaml,
 )
-from lib.providers import PROVIDER_ARK, PROVIDER_GEMINI, PROVIDER_GROK, PROVIDER_OPENAI
+from lib.providers import PROVIDER_ARK, PROVIDER_GEMINI, PROVIDER_GROK, PROVIDER_JIMENG, PROVIDER_OPENAI
 from lib.storyboard_sequence import (
     build_previous_storyboard_reference,
     find_storyboard_item,
@@ -50,6 +50,7 @@ DEFAULT_VIDEO_RESOLUTION: dict[str, str] = {
     PROVIDER_GEMINI: "1080p",
     PROVIDER_ARK: "720p",
     PROVIDER_GROK: "720p",
+    PROVIDER_JIMENG: "720p",
     PROVIDER_OPENAI: "720p",
 }
 
@@ -60,8 +61,29 @@ _PROVIDER_ID_TO_BACKEND: dict[str, str] = {
     PROVIDER_GEMINI: PROVIDER_GEMINI,
     PROVIDER_ARK: PROVIDER_ARK,
     PROVIDER_GROK: PROVIDER_GROK,
+    PROVIDER_JIMENG: PROVIDER_JIMENG,
     PROVIDER_OPENAI: PROVIDER_OPENAI,
 }
+
+
+def _resolve_video_resolution_provider(provider_name: str, video_backend: Any | None = None) -> str:
+    """解析用于默认分辨率回退的 provider key。
+
+    自定义供应商在任务层的 provider_name 是 `custom-<id>`，但默认分辨率应跟随
+    其实际 delegate backend（例如 grok2api -> grok -> 720p），避免落到通用 1080p。
+    """
+    mapped = _PROVIDER_ID_TO_BACKEND.get(provider_name, provider_name)
+    if mapped in DEFAULT_VIDEO_RESOLUTION:
+        return mapped
+
+    delegate = getattr(video_backend, "_delegate", None)
+    delegate_name = getattr(delegate, "name", None)
+    if isinstance(delegate_name, str):
+        mapped_delegate = _PROVIDER_ID_TO_BACKEND.get(delegate_name, delegate_name)
+        if mapped_delegate in DEFAULT_VIDEO_RESOLUTION:
+            return mapped_delegate
+
+    return mapped
 
 
 def get_project_manager() -> ProjectManager:
@@ -775,7 +797,7 @@ async def execute_video_task(
         model_name = model_name or default_model_id
         provider_name = _PROVIDER_ID_TO_BACKEND.get(default_provider_id, default_provider_id)
     # 将新 provider_id 映射为旧名称以查找分辨率
-    resolution_key = _PROVIDER_ID_TO_BACKEND.get(provider_name, provider_name)
+    resolution_key = _resolve_video_resolution_provider(provider_name, getattr(generator, "_video_backend", None))
     video_model_settings = project.get("video_model_settings", {})
     model_settings = video_model_settings.get(model_name, {}) if model_name else {}
     resolution = model_settings.get("resolution") or DEFAULT_VIDEO_RESOLUTION.get(resolution_key, "1080p")

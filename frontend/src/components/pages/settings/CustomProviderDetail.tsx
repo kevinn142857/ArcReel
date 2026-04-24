@@ -21,6 +21,7 @@ function formatApiLabel(apiFormat: string): string {
   if (apiFormat === "openai") return "OpenAI";
   if (apiFormat === "google") return "Google";
   if (apiFormat === "grok") return "Grok";
+  if (apiFormat === "grok2api") return "Grok2API";
   if (apiFormat === "newapi") return "NewAPI";
   return apiFormat;
 }

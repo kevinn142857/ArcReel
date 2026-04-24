@@ -49,7 +49,7 @@ async def discover_models(api_format: str, base_url: str | None, api_key: str) -
     """查询供应商的可用模型列表。
 
     Args:
-        api_format: API 格式 ("openai" | "google" | "grok" | "newapi")
+        api_format: API 格式 ("openai" | "google" | "grok" | "grok2api" | "newapi")
         base_url: 供应商 API 基础 URL
         api_key: API 密钥
 
@@ -65,8 +65,10 @@ async def discover_models(api_format: str, base_url: str | None, api_key: str) -
         return await _discover_google(base_url, api_key)
     elif api_format == "grok":
         return await _discover_grok_rest(base_url, api_key)
+    elif api_format == "grok2api":
+        return await _discover_grok2api(base_url, api_key)
     else:
-        raise ValueError(f"不支持的 api_format: {api_format!r}，支持: 'openai', 'google', 'grok', 'newapi'")
+        raise ValueError(f"不支持的 api_format: {api_format!r}，支持: 'openai', 'google', 'grok', 'grok2api', 'newapi'")
 
 
 async def _discover_openai(base_url: str | None, api_key: str) -> list[dict]:
@@ -165,6 +167,13 @@ async def _discover_grok_rest(base_url: str | None, api_key: str) -> list[dict]:
             raise
         logger.info("Grok 自定义网关未实现 xAI 专用模型端点，回退到 /v1/models 发现")
         return await _discover_openai(effective_base_url, api_key)
+
+
+async def _discover_grok2api(base_url: str | None, api_key: str) -> list[dict]:
+    """通过 OpenAI 兼容的 `/v1/models` 发现 Grok2API 网关模型。"""
+    if not base_url or not base_url.strip():
+        raise ValueError("grok2api 需要 base_url")
+    return await _discover_openai(base_url, api_key)
 
 
 def _infer_from_generation_methods(model) -> str | None:

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
@@ -182,6 +183,58 @@ class TestCreateProvider:
         body = resp.json()
         assert body["api_format"] == "grok"
         assert body["models"][0]["model_id"] == "grok-imagine-video"
+
+    def test_create_grok2api_provider(self, client: TestClient):
+        resp = client.post(
+            "/api/v1/custom-providers",
+            json={
+                "display_name": "Grok2API Gateway",
+                "api_format": "grok2api",
+                "base_url": "http://127.0.0.1:8000",
+                "api_key": "sk-grok2api-test-12345",
+                "models": [
+                    {
+                        "model_id": "grok-imagine-video",
+                        "display_name": "Grok Imagine Video",
+                        "media_type": "video",
+                        "is_default": True,
+                        "is_enabled": True,
+                    },
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["api_format"] == "grok2api"
+        assert body["base_url"] == "http://127.0.0.1:8000"
+        assert body["models"][0]["supported_durations"] == [6, 10, 12, 16, 20]
+
+    def test_provider_to_response_infers_grok2api_supported_durations(self):
+        provider = SimpleNamespace(
+            id=6,
+            display_name="Grok2API Gateway",
+            api_format="grok2api",
+            base_url="http://127.0.0.1:8000",
+            api_key="sk-test",
+            created_at=None,
+        )
+        model = SimpleNamespace(
+            id=1,
+            model_id="grok-imagine-video",
+            display_name="Grok Imagine Video",
+            media_type="video",
+            is_default=True,
+            is_enabled=True,
+            price_unit=None,
+            price_input=None,
+            price_output=None,
+            currency=None,
+            supported_durations=None,
+        )
+
+        resp = custom_providers._provider_to_response(provider, [model])
+
+        assert resp.models[0].supported_durations == [6, 10, 12, 16, 20]
 
 
 class TestListProviders:
@@ -511,6 +564,34 @@ class TestDiscoverModels:
         assert mock_discover.call_args.kwargs["api_format"] == "grok"
         assert mock_discover.call_args.kwargs["base_url"] == "https://proxy.example.com"
 
+    def test_discover_grok2api(self, client: TestClient):
+        fake_models = [
+            {
+                "model_id": "grok-imagine-video",
+                "display_name": "grok-imagine-video",
+                "media_type": "video",
+                "is_default": True,
+                "is_enabled": True,
+            },
+        ]
+        with patch(
+            "lib.custom_provider.discovery.discover_models",
+            new_callable=AsyncMock,
+            return_value=fake_models,
+        ) as mock_discover:
+            resp = client.post(
+                "/api/v1/custom-providers/discover",
+                json={
+                    "api_format": "grok2api",
+                    "base_url": "http://127.0.0.1:8000",
+                    "api_key": "sk-grok2api-discover",
+                },
+            )
+        assert resp.status_code == 200
+        assert resp.json()["models"][0]["model_id"] == "grok-imagine-video"
+        assert mock_discover.call_args.kwargs["api_format"] == "grok2api"
+        assert mock_discover.call_args.kwargs["base_url"] == "http://127.0.0.1:8000"
+
     def test_discover_invalid_format(self, client: TestClient):
         with patch(
             "lib.custom_provider.discovery.discover_models",
@@ -624,6 +705,25 @@ class TestConnectionTest:
         assert body["success"] is True
         assert body["model_count"] == 7
         mock_grok_test.assert_called_once_with("https://proxy.example.com", "xai-conn-test", ANY)
+
+    def test_grok2api_success(self, client: TestClient):
+        with patch(
+            "server.routers.custom_providers._test_grok2api",
+            return_value=custom_providers.ConnectionTestResponse(success=True, message="连接成功", model_count=3),
+        ) as mock_grok2api_test:
+            resp = client.post(
+                "/api/v1/custom-providers/test",
+                json={
+                    "api_format": "grok2api",
+                    "base_url": "http://127.0.0.1:8000",
+                    "api_key": "sk-grok2api-conn",
+                },
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["model_count"] == 3
+        mock_grok2api_test.assert_called_once_with("http://127.0.0.1:8000", "sk-grok2api-conn", ANY)
 
     def test_unsupported_format(self, client: TestClient):
         resp = client.post(

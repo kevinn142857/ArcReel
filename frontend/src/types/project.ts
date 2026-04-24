@@ -167,3 +167,16 @@ export interface ImportProjectResponse {
   conflict_resolution: "none" | "renamed" | "overwritten";
   diagnostics: ImportSuccessDiagnostics;
 }
+
+export interface ProjectVideoCapabilities {
+  provider_id: string;
+  model: string;
+  supported_durations: number[];
+  max_duration: number;
+  max_reference_images: number;
+  source: "registry" | "custom";
+  api_format?: string | null;
+  default_duration?: number | null;
+  content_mode?: string | null;
+  generation_mode?: string | null;
+}

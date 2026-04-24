@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lib.config.repository import mask_secret
 from lib.custom_provider import make_provider_id
+from lib.custom_provider.capabilities import coalesce_supported_durations
 from lib.db import get_async_session
 from lib.db.base import dt_to_iso
 from lib.db.repositories.custom_provider_repo import CustomProviderRepository
@@ -61,21 +62,31 @@ class ModelInput(BaseModel):
             raise ValueError("设置 price_output 时必须同时设置 price_input")
         return self
 
-    def to_db_dict(self) -> dict:
+    def to_db_dict(self, *, api_format: str | None = None) -> dict:
         """返回适合写入数据库的字典（supported_durations 序列化为 JSON 字符串）。"""
         d = self.model_dump()
-        d["supported_durations"] = (
-            json.dumps(self.supported_durations) if self.supported_durations is not None else None
+        durations = coalesce_supported_durations(
+            self.supported_durations,
+            api_format=api_format,
+            model_id=self.model_id,
+            media_type=self.media_type,
         )
+        d["supported_durations"] = json.dumps(durations) if durations is not None else None
         return d
 
 
 class CreateProviderRequest(BaseModel):
     display_name: str
-    api_format: str  # "openai" | "google" | "grok" | "newapi"
+    api_format: str  # "openai" | "google" | "grok" | "grok2api" | "newapi"
     base_url: str
     api_key: str
     models: list[ModelInput] = []
+
+    @model_validator(mode="after")
+    def _check_base_url_requirement(self):
+        if self.api_format != "grok" and not self.base_url.strip():
+            raise ValueError("base_url is required")
+        return self
 
 
 class UpdateProviderRequest(BaseModel):
@@ -94,9 +105,15 @@ class FullUpdateProviderRequest(BaseModel):
 
 
 class ProviderConnectionRequest(BaseModel):
-    api_format: str  # "openai" | "google" | "grok" | "newapi"
+    api_format: str  # "openai" | "google" | "grok" | "grok2api" | "newapi"
     base_url: str
     api_key: str
+
+    @model_validator(mode="after")
+    def _check_base_url_requirement(self):
+        if self.api_format != "grok" and not self.base_url.strip():
+            raise ValueError("base_url is required")
+        return self
 
 
 class ReplaceModelsRequest(BaseModel):
@@ -142,8 +159,14 @@ class DiscoverResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _model_to_response(m) -> ModelResponse:
+def _model_to_response(provider_api_format: str, m) -> ModelResponse:
     durations = json.loads(m.supported_durations) if m.supported_durations else None
+    resolved_durations = coalesce_supported_durations(
+        durations,
+        api_format=provider_api_format,
+        model_id=m.model_id,
+        media_type=m.media_type,
+    )
     return ModelResponse(
         id=m.id,
         model_id=m.model_id,
@@ -155,7 +178,7 @@ def _model_to_response(m) -> ModelResponse:
         price_input=m.price_input,
         price_output=m.price_output,
         currency=m.currency,
-        supported_durations=durations,
+        supported_durations=resolved_durations,
     )
 
 
@@ -166,7 +189,7 @@ def _provider_to_response(provider, models) -> ProviderResponse:
         api_format=provider.api_format,
         base_url=provider.base_url,
         api_key_masked=mask_secret(provider.api_key),
-        models=[_model_to_response(m) for m in models],
+        models=[_model_to_response(provider.api_format, m) for m in models],
         created_at=dt_to_iso(provider.created_at),
     )
 
@@ -256,7 +279,7 @@ async def create_provider(
         _check_duplicate_model_ids(body.models, _t)
         _check_unique_defaults(body.models, _t)
     repo = CustomProviderRepository(session)
-    model_dicts = [m.to_db_dict() for m in body.models] if body.models else None
+    model_dicts = [m.to_db_dict(api_format=body.api_format) for m in body.models] if body.models else None
     provider = await repo.create_provider(
         display_name=body.display_name,
         api_format=body.api_format,
@@ -339,7 +362,7 @@ async def full_update_provider(
     provider = await repo.update_provider(provider_id, **kwargs)
     if provider is None:
         raise HTTPException(status_code=404, detail=_t("provider_not_found"))
-    model_dicts = [m.to_db_dict() for m in body.models]
+    model_dicts = [m.to_db_dict(api_format=provider.api_format) for m in body.models]
     await repo.replace_models(provider_id, model_dicts)
     await session.commit()
     await _invalidate_caches(request)
@@ -404,7 +427,7 @@ async def replace_models(
     new_model_ids = {m.model_id for m in body.models}
     deleted_model_ids = old_model_ids - new_model_ids
 
-    model_dicts = [m.to_db_dict() for m in body.models]
+    model_dicts = [m.to_db_dict(api_format=provider.api_format) for m in body.models]
     new_models = await repo.replace_models(provider_id, model_dicts)
 
     # 清理引用已删除模型的全局配置
@@ -422,7 +445,7 @@ async def replace_models(
 
     await session.commit()
     await _invalidate_caches(request)
-    return [_model_to_response(m) for m in new_models]
+    return [_model_to_response(provider.api_format, m) for m in new_models]
 
 
 # ---------------------------------------------------------------------------
@@ -496,6 +519,11 @@ async def _run_connection_test(
         elif api_format == "grok":
             result = await asyncio.wait_for(
                 asyncio.to_thread(_test_grok, base_url, api_key, _t),
+                timeout=_CONNECTION_TEST_TIMEOUT,
+            )
+        elif api_format == "grok2api":
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_test_grok2api, base_url, api_key, _t),
                 timeout=_CONNECTION_TEST_TIMEOUT,
             )
         elif api_format == "newapi":
@@ -575,3 +603,10 @@ def _test_grok(base_url: str, api_key: str, _t: Callable[..., str]) -> Connectio
         message=_t("connection_success"),
         model_count=count,
     )
+
+
+def _test_grok2api(base_url: str, api_key: str, _t: Callable[..., str]) -> ConnectionTestResponse:
+    """通过 OpenAI 兼容的 /v1/models 验证 Grok2API 网关。"""
+    if not base_url.strip():
+        raise ValueError("grok2api 需要 base_url")
+    return _test_openai(base_url, api_key, _t)

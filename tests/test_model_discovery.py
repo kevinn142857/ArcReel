@@ -428,3 +428,26 @@ class TestDiscoverNewAPI:
         assert "kling-v1" in ids
         kling = next(m for m in result if m["model_id"] == "kling-v1")
         assert kling["media_type"] == "video"
+
+
+class TestDiscoverGrok2API:
+    async def test_grok2api_reuses_openai_path(self):
+        fake_models = [
+            type("M", (), {"id": "grok-4-fast"}),
+            type("M", (), {"id": "grok-imagine-video"}),
+        ]
+
+        with patch("lib.custom_provider.discovery.OpenAI") as mock_cls:
+            mock_client = mock_cls.return_value
+            mock_client.models.list.return_value = fake_models
+
+            result = await discover_models(api_format="grok2api", base_url="http://127.0.0.1:8000", api_key="sk")
+
+        ids = [m["model_id"] for m in result]
+        assert "grok-4-fast" in ids
+        assert "grok-imagine-video" in ids
+        mock_cls.assert_called_once_with(api_key="sk", base_url="http://127.0.0.1:8000/v1")
+
+    async def test_grok2api_requires_base_url(self):
+        with pytest.raises(ValueError, match="base_url"):
+            await discover_models(api_format="grok2api", base_url="", api_key="sk")

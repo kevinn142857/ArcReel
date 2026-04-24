@@ -313,6 +313,31 @@ class TestGenerationTasks:
         assert "video_thumbnail" in asset_types
         assert thumbnail_path.exists()
 
+    async def test_execute_video_task_uses_delegate_default_resolution_for_custom_grok2api(self, monkeypatch, tmp_path):
+        """自定义 grok2api provider 未显式配置分辨率时，应继承 Grok 的 720p 默认值。"""
+        project_path = _prepare_files(tmp_path)
+        fake_pm = _FakePM(project_path)
+        fake_pm.project["video_backend"] = "custom-6/grok-imagine-video"
+        fake_generator = _FakeGenerator()
+        fake_generator._video_backend = type(
+            "CustomVideoBackendStub",
+            (),
+            {"_delegate": type("DelegateStub", (), {"name": "grok"})()},
+        )()
+
+        monkeypatch.setattr(generation_tasks, "get_project_manager", lambda: fake_pm)
+        monkeypatch.setattr(generation_tasks, "get_media_generator", _async_return(fake_generator))
+        monkeypatch.setattr(generation_tasks, "extract_video_thumbnail", _async_return(False))
+        monkeypatch.setattr(generation_tasks, "emit_project_change_batch", lambda *a, **kw: None)
+
+        await generation_tasks.execute_video_task(
+            "demo",
+            "E1S01",
+            {"script_file": "episode_1.json", "prompt": {"action": "跑", "camera_motion": "Static", "dialogue": []}},
+        )
+
+        assert fake_generator.video_calls[0]["resolution"] == "720p"
+
     async def test_get_media_generator_skips_image_backend_for_video_tasks(self, monkeypatch, tmp_path):
         """视频任务只应初始化视频 backend，避免图片配置缺失导致提前失败。"""
         project_path = _prepare_files(tmp_path)
