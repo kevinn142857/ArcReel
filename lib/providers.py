@@ -7,6 +7,7 @@ PROVIDER_ARK = "ark"
 PROVIDER_GROK = "grok"
 PROVIDER_OPENAI = "openai"
 PROVIDER_NEWAPI = "newapi"
+PROVIDER_JIMENG = "jimeng"
 
 CallType = Literal["image", "video", "text"]
 CALL_TYPE_IMAGE: CallType = "image"

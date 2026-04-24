@@ -20,6 +20,7 @@ PROVIDER_MAX_REFS: dict[str, int] = {
     "openai": 1,
     "grok": 7,
     "ark": 9,
+    "jimeng": 10,
 }
 
 DEFAULT_MAX_REFS = 9

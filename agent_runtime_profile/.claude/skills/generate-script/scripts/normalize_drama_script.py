@@ -6,9 +6,9 @@ normalize_drama_script.py - 使用 Gemini Pro 生成规范化剧本
 供 generate_script.py 消费。
 
 用法:
-    python normalize_drama_script.py --episode <N>
-    python normalize_drama_script.py --episode <N> --source <file>
-    python normalize_drama_script.py --episode <N> --dry-run
+    uv run python normalize_drama_script.py --episode <N>
+    uv run python normalize_drama_script.py --episode <N> --source <file>
+    uv run python normalize_drama_script.py --episode <N> --dry-run
 """
 
 from __future__ import annotations
@@ -19,8 +19,9 @@ import logging
 import sys
 from pathlib import Path
 
-# parents[4] 对应 repo root，相对路径 agent_runtime_profile/.claude/skills/generate-script/scripts/
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+# 文件位于 agent_runtime_profile/.claude/skills/generate-script/scripts/ 下，
+# parents[5] 才对应 repo root。
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 

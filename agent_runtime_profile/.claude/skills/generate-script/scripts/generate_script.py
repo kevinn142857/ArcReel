@@ -3,21 +3,23 @@
 generate_script.py - 使用 Gemini 生成 JSON 剧本
 
 用法:
-    python generate_script.py --episode <N>
-    python generate_script.py --episode <N> --output <path>
-    python generate_script.py --episode <N> --dry-run
+    uv run python generate_script.py --episode <N>
+    uv run python generate_script.py --episode <N> --output <path>
+    uv run python generate_script.py --episode <N> --dry-run
 
 示例:
-    python generate_script.py --episode 1
-    python generate_script.py --episode 1 --output scripts/ep1.json
+    uv run python generate_script.py --episode 1
+    uv run python generate_script.py --episode 1 --output scripts/ep1.json
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-# 允许从仓库任意工作目录直接运行该脚本
-PROJECT_ROOT = Path(__file__).resolve().parents[4]  # .claude/skills/generate-script/scripts -> repo root
+# 允许从仓库任意工作目录直接运行该脚本。
+# 文件位于 agent_runtime_profile/.claude/skills/generate-script/scripts/ 下，
+# parents[5] 才是仓库根目录；parents[4] 仅到 agent_runtime_profile。
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 

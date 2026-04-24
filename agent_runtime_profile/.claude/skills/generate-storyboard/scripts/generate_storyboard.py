@@ -7,15 +7,11 @@ Storyboard Generator - 通过生成队列生成分镜图
 - drama 模式（剧集动画）：生成 16:9 横屏分镜图
 
 Usage:
-    # narration 模式：提交分镜图生成任务（默认）
-    python generate_storyboard.py <project_name> <script_file>
-    python generate_storyboard.py <project_name> <script_file> --scene E1S05
-    python generate_storyboard.py <project_name> <script_file> --segment-ids E1S01 E1S02
-
-    # drama 模式：提交分镜图生成任务
-    python generate_storyboard.py <project_name> <script_file>
-    python generate_storyboard.py <project_name> <script_file> --scene E1S05
-    python generate_storyboard.py <project_name> <script_file> --scene-ids E1S01 E1S02
+    # narration / drama 模式：在项目目录中提交分镜图生成任务
+    python generate_storyboard.py <script_file>
+    python generate_storyboard.py <script_file> --scene E1S05
+    python generate_storyboard.py <script_file> --segment-ids E1S01 E1S02
+    python generate_storyboard.py <script_file> --scene-ids E1S01 E1S02
 """
 
 import argparse
@@ -24,6 +20,13 @@ import sys
 import threading
 from datetime import datetime
 from pathlib import Path
+
+# 允许从项目目录通过 `.claude/.../generate_storyboard.py` 直接运行该脚本。
+# 文件位于 agent_runtime_profile/.claude/skills/generate-storyboard/scripts/ 下，
+# parents[5] 才是仓库根目录。
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from lib.generation_queue_client import (
     BatchTaskResult,

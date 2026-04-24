@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from lib.custom_provider import is_custom_provider
-from lib.providers import PROVIDER_ARK, PROVIDER_GROK, PROVIDER_OPENAI, CallType
+from lib.providers import PROVIDER_ARK, PROVIDER_GROK, PROVIDER_JIMENG, PROVIDER_OPENAI, CallType
 
 
 class CostCalculator:
@@ -348,6 +348,16 @@ class CostCalculator:
         per_second = model_costs.get(resolution, model_costs.get("720p"))
         return duration_seconds * per_second, "USD"
 
+    @staticmethod
+    def calculate_jimeng_image_cost() -> tuple[float, str]:
+        """Jimeng 兼容服务暂未维护稳定官方价格，先按 0 计费。"""
+        return 0.0, "CNY"
+
+    @staticmethod
+    def calculate_jimeng_video_cost() -> tuple[float, str]:
+        """Jimeng 兼容服务暂未维护稳定官方价格，先按 0 计费。"""
+        return 0.0, "CNY"
+
     _TEXT_COST_TABLES: dict[str, tuple[dict, str, str]] = {
         # provider -> (cost_table_attr, default_model, currency)
         PROVIDER_ARK: ("ARK_TEXT_COST", "doubao-seed-2-0-lite-260215", "CNY"),
@@ -420,6 +430,8 @@ class CostCalculator:
                 return self.calculate_ark_image_cost(model=model)
             if provider == PROVIDER_GROK:
                 return self.calculate_grok_image_cost(model=model)
+            if provider == PROVIDER_JIMENG:
+                return self.calculate_jimeng_image_cost()
             if provider == PROVIDER_OPENAI:
                 return self.calculate_openai_image_cost(model=model, quality=quality, size=size)
             return self.calculate_image_cost(resolution or "1K", model=model), "USD"
@@ -437,6 +449,8 @@ class CostCalculator:
                     duration_seconds=duration_seconds or 8,
                     model=model,
                 )
+            if provider == PROVIDER_JIMENG:
+                return self.calculate_jimeng_video_cost()
             if provider == PROVIDER_OPENAI:
                 return self.calculate_openai_video_cost(
                     duration_seconds=duration_seconds or 8,
@@ -489,6 +503,8 @@ class CostCalculator:
                 duration_seconds=total_duration,
                 model=model,
             )
+        if provider == PROVIDER_JIMENG:
+            return self.calculate_jimeng_video_cost()
         if provider == PROVIDER_OPENAI:
             return self.calculate_openai_video_cost(
                 duration_seconds=total_duration,

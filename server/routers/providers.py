@@ -14,6 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +24,7 @@ from lib import PROJECT_ROOT
 from lib.config.registry import PROVIDER_REGISTRY
 from lib.config.repository import mask_secret
 from lib.config.service import ConfigService
-from lib.config.url_utils import normalize_base_url
+from lib.config.url_utils import ensure_openai_base_url, normalize_base_url
 from lib.db import get_async_session
 from lib.db.base import dt_to_iso
 from lib.db.repositories.credential_repository import CredentialRepository
@@ -585,6 +586,7 @@ def _test_grok(config: dict[str, str], _t: Callable[..., str]) -> ConnectionTest
 
 
 _OPENAI_MODEL_KEYWORDS = ("gpt", "sora", "dall", "o1", "o3", "o4")
+_JIMENG_MODEL_PREFIXES = ("jimeng-", "seedance-")
 
 
 def _test_openai(config: dict[str, str], _t: Callable[..., str]) -> ConnectionTestResponse:
@@ -605,11 +607,43 @@ def _test_openai(config: dict[str, str], _t: Callable[..., str]) -> ConnectionTe
     )
 
 
+def _test_jimeng(config: dict[str, str], _t: Callable[..., str]) -> ConnectionTestResponse:
+    """通过 /models 验证 Jimeng 兼容服务。"""
+    base_url = (
+        ensure_openai_base_url(config.get("base_url") or os.environ.get("JIMENG_BASE_URL") or "http://localhost:8000")
+        or "http://localhost:8000/v1"
+    )
+    headers = {"Authorization": f"Bearer {config['api_key']}"}
+
+    with httpx.Client(timeout=_CONNECTION_TEST_TIMEOUT) as client:
+        response = client.get(f"{base_url}/models", headers=headers)
+        response.raise_for_status()
+        body = response.json()
+
+    models = body.get("data")
+    if not isinstance(models, list):
+        raise RuntimeError(f"Jimeng /models 返回格式不正确: {body}")
+
+    available = sorted(
+        model_id
+        for item in models
+        if isinstance(item, dict)
+        for model_id in [item.get("id")]
+        if isinstance(model_id, str) and model_id.startswith(_JIMENG_MODEL_PREFIXES)
+    )
+    return ConnectionTestResponse(
+        success=True,
+        available_models=available,
+        message=_t("connection_success"),
+    )
+
+
 _TEST_DISPATCH: dict[str, Callable[[dict[str, str], Any], ConnectionTestResponse]] = {
     "gemini-aistudio": _test_gemini_aistudio,
     "gemini-vertex": _test_gemini_vertex,
     "ark": _test_ark,
     "grok": _test_grok,
+    "jimeng": _test_jimeng,
     "openai": _test_openai,
 }
 

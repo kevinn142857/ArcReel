@@ -321,4 +321,82 @@ PROVIDER_REGISTRY: dict[str, ProviderMeta] = {
             ),
         },
     ),
+    "jimeng": ProviderMeta(
+        display_name="Jimeng",
+        description="Jimeng OpenAI 兼容服务，支持即梦图片模型与视频模型（含 Seedance 2.0 多图视频）。",
+        required_keys=["api_key"],
+        optional_keys=["base_url", "image_max_workers", "video_max_workers"],
+        secret_keys=["api_key"],
+        models={
+            # --- image ---
+            "jimeng-5.0": ModelInfo(
+                display_name="Jimeng 5.0",
+                media_type="image",
+                capabilities=["text_to_image", "image_to_image"],
+            ),
+            "jimeng-4.6": ModelInfo(
+                display_name="Jimeng 4.6",
+                media_type="image",
+                capabilities=["text_to_image", "image_to_image"],
+                default=True,
+            ),
+            "jimeng-4.5": ModelInfo(
+                display_name="Jimeng 4.5",
+                media_type="image",
+                capabilities=["text_to_image", "image_to_image"],
+            ),
+            "jimeng-4.1": ModelInfo(
+                display_name="Jimeng 4.1",
+                media_type="image",
+                capabilities=["text_to_image", "image_to_image"],
+            ),
+            "jimeng-4.0": ModelInfo(
+                display_name="Jimeng 4.0",
+                media_type="image",
+                capabilities=["text_to_image", "image_to_image"],
+            ),
+            "jimeng-3.1": ModelInfo(
+                display_name="Jimeng 3.1",
+                media_type="image",
+                capabilities=["text_to_image", "image_to_image"],
+            ),
+            "jimeng-3.0": ModelInfo(
+                display_name="Jimeng 3.0",
+                media_type="image",
+                capabilities=["text_to_image", "image_to_image"],
+            ),
+            # --- video ---
+            "jimeng-video-3.5-pro": ModelInfo(
+                display_name="Jimeng Video 3.5 Pro",
+                media_type="video",
+                capabilities=["text_to_video", "image_to_video"],
+                default=True,
+                supported_durations=[5, 10],
+            ),
+            "jimeng-video-3.0": ModelInfo(
+                display_name="Jimeng Video 3.0",
+                media_type="video",
+                capabilities=["text_to_video", "image_to_video"],
+                supported_durations=[5, 10],
+            ),
+            "jimeng-video-3.0-pro": ModelInfo(
+                display_name="Jimeng Video 3.0 Pro",
+                media_type="video",
+                capabilities=["text_to_video", "image_to_video"],
+                supported_durations=[5, 10],
+            ),
+            "jimeng-video-seedance-2.0": ModelInfo(
+                display_name="Jimeng Seedance 2.0",
+                media_type="video",
+                capabilities=["text_to_video", "image_to_video"],
+                supported_durations=list(range(4, 16)),
+            ),
+            "jimeng-video-seedance-2.0-fast": ModelInfo(
+                display_name="Jimeng Seedance 2.0 Fast",
+                media_type="video",
+                capabilities=["text_to_video", "image_to_video"],
+                supported_durations=list(range(4, 16)),
+            ),
+        },
+    ),
 }

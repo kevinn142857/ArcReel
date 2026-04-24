@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -26,6 +27,21 @@ def _load_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_storyboard_script_bootstraps_repo_root(monkeypatch, tmp_path):
+    for key in [name for name in sys.modules if name == "lib" or name.startswith("lib.")]:
+        monkeypatch.delitem(sys.modules, key, raising=False)
+
+    repo_root = Path(__file__).resolve().parents[1]
+    current_sys_path = [entry for entry in sys.path if Path(entry or os.curdir).resolve() != repo_root]
+    monkeypatch.setattr(sys, "path", current_sys_path[:])
+    monkeypatch.chdir(tmp_path)
+
+    module = _load_module()
+
+    assert str(repo_root) in sys.path
+    assert module.PROJECT_ROOT == repo_root
 
 
 class _FakeProjectManager:

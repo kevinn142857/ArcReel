@@ -18,15 +18,17 @@ import type { ProviderCredential, ProviderTestResult } from "@/types";
 const inputCls = "w-full rounded-lg border border-gray-700 bg-gray-900/80 px-3 py-1.5 text-sm text-gray-200 focus:border-indigo-500/60 focus-ring";
 const inputClsPlaceholder = `${inputCls} placeholder:text-gray-600`;
 const primaryBtnCls = "inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-indigo-500 disabled:opacity-50 focus-ring";
+const PROVIDERS_WITH_CREDENTIAL_BASE_URL = new Set(["gemini-aistudio", "openai", "jimeng"]);
 
 interface RowProps {
   cred: ProviderCredential;
   providerId: string;
   isVertex: boolean;
+  showBaseUrl: boolean;
   onChanged: () => void;
 }
 
-const CredentialRow = memo(function CredentialRow({ cred, providerId, isVertex, onChanged }: RowProps) {
+const CredentialRow = memo(function CredentialRow({ cred, providerId, isVertex, showBaseUrl, onChanged }: RowProps) {
   const { t } = useTranslation("dashboard");
   const [editing, setEditing] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -238,7 +240,7 @@ const CredentialRow = memo(function CredentialRow({ cred, providerId, isVertex, 
               className={inputClsPlaceholder}
             />
           </div>
-          {providerId === "gemini-aistudio" && (
+          {showBaseUrl && (
             <div>
               <label htmlFor={`${editPrefix}-baseurl`} className="mb-1 block text-xs text-gray-500">{t("base_url_optional")}</label>
               <input
@@ -282,11 +284,12 @@ const CredentialRow = memo(function CredentialRow({ cred, providerId, isVertex, 
 interface AddFormProps {
   providerId: string;
   isVertex: boolean;
+  showBaseUrl: boolean;
   onCreated: () => void;
   onCancel: () => void;
 }
 
-function AddCredentialForm({ providerId, isVertex, onCreated, onCancel }: AddFormProps) {
+function AddCredentialForm({ providerId, isVertex, showBaseUrl, onCreated, onCancel }: AddFormProps) {
   const { t } = useTranslation("dashboard");
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -372,7 +375,7 @@ function AddCredentialForm({ providerId, isVertex, onCreated, onCancel }: AddFor
               className={inputCls}
             />
           </div>
-          {providerId === "gemini-aistudio" && (
+          {showBaseUrl && (
             <div>
               <label htmlFor="cred-add-baseurl" className="mb-1 block text-xs text-gray-500">{t("base_url_optional")}</label>
               <input
@@ -425,6 +428,7 @@ export function CredentialList({ providerId, onChanged }: Props) {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const isVertex = providerId === "gemini-vertex";
+  const showBaseUrl = PROVIDERS_WITH_CREDENTIAL_BASE_URL.has(providerId);
 
   // 用 ref 存储 onChanged 以稳定 refresh 引用，避免父组件 re-render 导致无限循环
   const onChangedRef = useRef(onChanged);
@@ -494,6 +498,7 @@ export function CredentialList({ providerId, onChanged }: Props) {
             cred={c}
             providerId={providerId}
             isVertex={isVertex}
+            showBaseUrl={showBaseUrl}
             onChanged={voidPromise(handleChanged)}
           />
         ))}
@@ -504,6 +509,7 @@ export function CredentialList({ providerId, onChanged }: Props) {
           <AddCredentialForm
             providerId={providerId}
             isVertex={isVertex}
+            showBaseUrl={showBaseUrl}
             onCreated={() => {
               setShowAdd(false);
               void handleChanged();

@@ -20,13 +20,13 @@ user-invocable: false
 
 ```bash
 # 生成指定剧集的剧本
-python .claude/skills/generate-script/scripts/generate_script.py --episode {N}
+uv run python .claude/skills/generate-script/scripts/generate_script.py --episode {N}
 
 # 自定义输出路径
-python .claude/skills/generate-script/scripts/generate_script.py --episode {N} --output scripts/ep1.json
+uv run python .claude/skills/generate-script/scripts/generate_script.py --episode {N} --output scripts/ep1.json
 
 # 预览 Prompt（不实际调用 API）
-python .claude/skills/generate-script/scripts/generate_script.py --episode {N} --dry-run
+uv run python .claude/skills/generate-script/scripts/generate_script.py --episode {N} --dry-run
 ```
 
 ## 生成流程

@@ -35,6 +35,10 @@ from lib.providers import PROVIDER_GROK
 register_backend(PROVIDER_GROK, GrokImageBackend)
 
 from lib.image_backends.openai import OpenAIImageBackend
-from lib.providers import PROVIDER_OPENAI
+from lib.providers import PROVIDER_JIMENG, PROVIDER_OPENAI
 
 register_backend(PROVIDER_OPENAI, OpenAIImageBackend)
+
+from lib.image_backends.jimeng import JimengImageBackend
+
+register_backend(PROVIDER_JIMENG, JimengImageBackend)

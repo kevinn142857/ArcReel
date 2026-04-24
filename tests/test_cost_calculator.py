@@ -314,3 +314,23 @@ class TestOpenAICost:
         assert amount == pytest.approx(0.200)
         amount, currency = calculator.calculate_cost("openai", "video", duration_seconds=12, model="sora-2")
         assert amount == pytest.approx(1.20)
+
+
+class TestJimengCost:
+    def test_jimeng_image_cost_defaults_to_zero_cny(self):
+        calculator = CostCalculator()
+        amount, currency = calculator.calculate_cost(provider="jimeng", call_type="image", model="jimeng-4.6")
+        assert amount == pytest.approx(0.0)
+        assert currency == "CNY"
+
+    def test_jimeng_video_cost_defaults_to_zero_cny(self):
+        calculator = CostCalculator()
+        amount, currency = calculator.calculate_cost(
+            provider="jimeng",
+            call_type="video",
+            model="jimeng-video-3.5-pro",
+            duration_seconds=5,
+            resolution="720p",
+        )
+        assert amount == pytest.approx(0.0)
+        assert currency == "CNY"

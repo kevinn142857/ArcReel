@@ -12,7 +12,7 @@ description: 为剧本场景生成分镜图。当用户说"生成分镜"、"预�
 ## 命令行用法
 
 ```bash
-# 提交所有缺失分镜图到生成队列（自动检测 content_mode）
+# 在项目目录中，提交所有缺失分镜图到生成队列（自动检测 content_mode）
 python .claude/skills/generate-storyboard/scripts/generate_storyboard.py script.json
 
 # 为单个场景重新生成
@@ -25,6 +25,8 @@ python .claude/skills/generate-storyboard/scripts/generate_storyboard.py script.
 > `--scene-ids` 和 `--segment-ids` 是同义别名（后者为 narration 模式的习惯称呼），效果相同。以下统一使用 `--scene-ids`。
 
 > **选择规则**：`--scene` 重生成一个；`--scene-ids` 重生成多个；未提供则提交所有缺失项。
+
+> **白名单约束**：命令必须使用相对脚本路径 `python .claude/skills/.../generate_storyboard.py ...`，不要传绝对脚本路径；项目名由当前工作目录自动推断，不需要额外传入项目路径。
 
 > **注意**：脚本要求 generation worker 在线，worker 负责实际图像生成与速率控制。
 

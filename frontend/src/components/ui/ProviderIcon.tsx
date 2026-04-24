@@ -9,6 +9,7 @@ export const PROVIDER_NAMES: Record<string, string> = {
   "gemini-vertex": "Vertex AI",
   ark: "火山方舟",
   grok: "Grok",
+  jimeng: "Jimeng",
   openai: "OpenAI",
 };
 
