@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Asset Generator - 使用 Gemini API 生成角色 / 场景 / 道具设计图
+Asset Generator - 使用当前设定的图片后端生成角色 / 场景 / 道具设计图
 
 Usage:
     python generate_asset.py --all                                   # 生成所有类型的待处理资产
@@ -12,6 +12,8 @@ Usage:
 """
 
 import argparse
+import asyncio
+import concurrent.futures
 import sys
 from pathlib import Path
 
@@ -54,6 +56,62 @@ TYPE_CONFIG: dict[str, dict] = {
 }
 
 ALL_TYPES: tuple[str, ...] = ("character", "scene", "prop")
+_LEGACY_PROVIDER_NAMES: dict[str, str] = {
+    "gemini": "gemini-aistudio",
+    "aistudio": "gemini-aistudio",
+    "vertex": "gemini-vertex",
+}
+
+
+def _normalize_provider_id(raw: str) -> str:
+    return _LEGACY_PROVIDER_NAMES.get(raw, raw)
+
+
+def _run_sync(coro):
+    """在同步脚本中安全运行协程。"""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and loop.is_running():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+    return asyncio.run(coro)
+
+
+def _load_default_image_backend() -> tuple[str, str]:
+    """读取当前系统默认图片后端配置。"""
+    from lib.config.resolver import ConfigResolver
+    from lib.db import async_session_factory
+
+    async def _resolve() -> tuple[str, str]:
+        resolver = ConfigResolver(async_session_factory)
+        return await resolver.default_image_backend()
+
+    return _run_sync(_resolve())
+
+
+def _snapshot_current_image_backend(pm: ProjectManager, project_name: str) -> dict[str, str]:
+    """快照当前图片生成方式，优先项目级 image_backend，其次系统默认。"""
+    project = pm.load_project(project_name)
+    project_image_backend = project.get("image_backend")
+
+    if isinstance(project_image_backend, str) and project_image_backend.strip():
+        if "/" in project_image_backend:
+            image_provider, image_model = project_image_backend.split("/", 1)
+        else:
+            image_provider = _normalize_provider_id(project_image_backend.strip())
+            image_model = ""
+        return {"image_provider": image_provider, "image_model": image_model}
+
+    try:
+        image_provider, image_model = _load_default_image_backend()
+    except Exception as exc:
+        print(f"⚠️  无法快照当前默认图片后端，将在任务执行时按运行时配置解析: {exc}")
+        return {}
+
+    return {"image_provider": image_provider, "image_model": image_model}
 
 
 def _get_pending(pm: ProjectManager, project_name: str, asset_type: str) -> list[dict]:
@@ -76,6 +134,7 @@ def generate_single(asset_type: str, name: str) -> Path:
     pm, project_name = ProjectManager.from_cwd()
     project_dir = pm.get_project_path(project_name)
     project = pm.load_project(project_name)
+    image_backend_snapshot = _snapshot_current_image_backend(pm, project_name)
 
     description = _get_asset_description(project, asset_type, name)
     if not description:
@@ -89,7 +148,7 @@ def generate_single(asset_type: str, name: str) -> Path:
         task_type=cfg["task_type"],
         media_type="image",
         resource_id=name,
-        payload={"prompt": description},
+        payload={"prompt": description, **image_backend_snapshot},
         source="skill",
     )
     result = queued.get("result") or {}
@@ -140,6 +199,7 @@ def _build_specs(
     cfg = TYPE_CONFIG[asset_type]
     project = pm.load_project(project_name)
     assets_dict = project.get(cfg["project_key"], {})
+    image_backend_snapshot = _snapshot_current_image_backend(pm, project_name)
 
     if names:
         resolved: list[str] = []
@@ -160,7 +220,7 @@ def _build_specs(
             task_type=cfg["task_type"],
             media_type="image",
             resource_id=name,
-            payload={"prompt": assets_dict[name]["description"]},
+            payload={"prompt": assets_dict[name]["description"], **image_backend_snapshot},
         )
         for name in resolved
     ]

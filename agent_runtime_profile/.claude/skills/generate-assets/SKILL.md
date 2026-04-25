@@ -5,7 +5,7 @@ description: "统一资产生成 skill：接受 `--type=character|scene|prop`，
 
 # 生成资产设计图
 
-使用 Gemini 3 Pro Image API 创建角色、场景、道具设计图，确保整个视频中视觉元素的一致性。
+使用当前项目 / 系统设定的图片生成方式创建角色、场景、道具设计图，确保整个视频中视觉元素的一致性。
 
 > Prompt 编写原则详见 `.claude/references/generation-modes.md` 的"Prompt 语言"章节。
 
@@ -126,7 +126,7 @@ python .claude/skills/generate-assets/scripts/generate_asset.py --type prop --li
 ## 工作流程
 
 1. **加载项目元数据** — 从 project.json 找出缺少对应 `*_sheet` 的资产
-2. **生成资产设计** — 根据类型选择对应模板，调用脚本生成
+2. **生成资产设计** — 根据类型选择对应模板，调用脚本生成；脚本会优先沿用项目级 `image_backend`，否则使用当前系统默认图片后端
 3. **审核检查点** — 展示每张设计图，用户可批准或要求重新生成
 4. **更新 project.json** — 更新 `character_sheet` / `scene_sheet` / `prop_sheet` 路径
 
