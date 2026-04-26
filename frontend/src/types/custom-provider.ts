@@ -1,7 +1,7 @@
 export interface CustomProviderInfo {
   id: number;
   display_name: string;
-  api_format: "openai" | "google" | "grok" | "grok2api" | "newapi";
+  api_format: "openai" | "google" | "flow2api" | "grok" | "grok2api" | "newapi";
   base_url: string;
   api_key_masked: string;
   models: CustomProviderModelInfo[];
@@ -33,7 +33,7 @@ export interface DiscoveredModel {
 
 export interface CustomProviderCreateRequest {
   display_name: string;
-  api_format: "openai" | "google" | "grok" | "grok2api" | "newapi";
+  api_format: "openai" | "google" | "flow2api" | "grok" | "grok2api" | "newapi";
   base_url: string;
   api_key: string;
   models: CustomProviderModelInput[];

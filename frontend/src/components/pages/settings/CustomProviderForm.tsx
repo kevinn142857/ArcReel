@@ -17,12 +17,13 @@ import { IMAGE_STANDARD_RESOLUTIONS, VIDEO_STANDARD_RESOLUTIONS } from "@/utils/
 // Types
 // ---------------------------------------------------------------------------
 
-type ApiFormat = "openai" | "google" | "grok" | "grok2api" | "newapi";
+type ApiFormat = "openai" | "google" | "flow2api" | "grok" | "grok2api" | "newapi";
 type MediaType = "text" | "image" | "video";
 
 const API_FORMAT_OPTIONS: { value: ApiFormat; label: string }[] = [
   { value: "openai", label: "OpenAI" },
   { value: "google", label: "Google" },
+  { value: "flow2api", label: "Flow2API" },
   { value: "grok", label: "Grok" },
   { value: "grok2api", label: "Grok2API" },
   { value: "newapi", label: "NewAPI" },
@@ -312,9 +313,12 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
       const base = trimmed.match(/\/v\d+$/) ? trimmed : `${trimmed}/v1`;
       return `${base}/models`;
     }
-    // Google SDK 自动拼接 /v1beta，后端会剥离用户误填的版本路径
-    const base = trimmed.replace(/\/v\d+\w*$/, "");
-    return `${base}/v1beta/models`;
+    if (apiFormat === "google" || apiFormat === "flow2api") {
+      // Google / Flow2API 走 Gemini 兼容接口，SDK 自动拼接 /v1beta
+      const base = trimmed.replace(/\/v\d+\w*$/, "");
+      return `${base}/v1beta/models`;
+    }
+    return null;
   })();
 
   return (

@@ -78,7 +78,7 @@ class ModelInput(BaseModel):
 
 class CreateProviderRequest(BaseModel):
     display_name: str
-    api_format: str  # "openai" | "google" | "grok" | "grok2api" | "newapi"
+    api_format: str  # "openai" | "google" | "flow2api" | "grok" | "grok2api" | "newapi"
     base_url: str
     api_key: str
     models: list[ModelInput] = []
@@ -106,7 +106,7 @@ class FullUpdateProviderRequest(BaseModel):
 
 
 class ProviderConnectionRequest(BaseModel):
-    api_format: str  # "openai" | "google" | "grok" | "grok2api" | "newapi"
+    api_format: str  # "openai" | "google" | "flow2api" | "grok" | "grok2api" | "newapi"
     base_url: str
     api_key: str
 
@@ -519,6 +519,11 @@ async def _run_connection_test(
                 asyncio.to_thread(_test_google, base_url, api_key, _t),
                 timeout=_CONNECTION_TEST_TIMEOUT,
             )
+        elif api_format == "flow2api":
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_test_flow2api, base_url, api_key, _t),
+                timeout=_CONNECTION_TEST_TIMEOUT,
+            )
         elif api_format == "grok":
             result = await asyncio.wait_for(
                 asyncio.to_thread(_test_grok, base_url, api_key, _t),
@@ -589,6 +594,13 @@ def _test_google(base_url: str, api_key: str, _t: Callable[..., str]) -> Connect
         message=_t("connection_success"),
         model_count=count,
     )
+
+
+def _test_flow2api(base_url: str, api_key: str, _t: Callable[..., str]) -> ConnectionTestResponse:
+    """通过 Gemini 兼容的 models.list() 验证 Flow2API 网关。"""
+    if not base_url.strip():
+        raise ValueError("flow2api 需要 base_url")
+    return _test_google(base_url, api_key, _t)
 
 
 def _test_grok(base_url: str, api_key: str, _t: Callable[..., str]) -> ConnectionTestResponse:

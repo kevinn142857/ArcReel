@@ -430,6 +430,39 @@ class TestDiscoverNewAPI:
         assert kling["media_type"] == "video"
 
 
+class TestDiscoverFlow2API:
+    @patch("lib.custom_provider.discovery.genai")
+    async def test_flow2api_reuses_google_path(self, mock_genai):
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        model_text = MagicMock()
+        model_text.name = "models/gemini-3-flash"
+        model_text.supported_generation_methods = ["generateContent"]
+        model_video = MagicMock()
+        model_video.name = "models/veo-3"
+        model_video.supported_generation_methods = ["generateVideo"]
+        mock_client.models.list.return_value = [model_text, model_video]
+
+        result = await discover_models(
+            api_format="flow2api",
+            base_url="https://flow2api.example.com/v1beta",
+            api_key="sk",
+        )
+
+        ids = [m["model_id"] for m in result]
+        assert "gemini-3-flash" in ids
+        assert "veo-3" in ids
+        mock_genai.Client.assert_called_once_with(
+            api_key="sk",
+            http_options={"base_url": "https://flow2api.example.com/"},
+        )
+
+    async def test_flow2api_requires_base_url(self):
+        with pytest.raises(ValueError, match="flow2api 需要 base_url"):
+            await discover_models(api_format="flow2api", base_url="", api_key="sk")
+
+
 class TestDiscoverGrok2API:
     async def test_grok2api_reuses_openai_path(self):
         fake_models = [

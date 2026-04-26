@@ -49,7 +49,7 @@ async def discover_models(api_format: str, base_url: str | None, api_key: str) -
     """查询供应商的可用模型列表。
 
     Args:
-        api_format: API 格式 ("openai" | "google" | "grok" | "grok2api" | "newapi")
+        api_format: API 格式 ("openai" | "google" | "flow2api" | "grok" | "grok2api" | "newapi")
         base_url: 供应商 API 基础 URL
         api_key: API 密钥
 
@@ -63,12 +63,16 @@ async def discover_models(api_format: str, base_url: str | None, api_key: str) -
         return await _discover_openai(base_url, api_key)
     elif api_format == "google":
         return await _discover_google(base_url, api_key)
+    elif api_format == "flow2api":
+        return await _discover_flow2api(base_url, api_key)
     elif api_format == "grok":
         return await _discover_grok_rest(base_url, api_key)
     elif api_format == "grok2api":
         return await _discover_grok2api(base_url, api_key)
     else:
-        raise ValueError(f"不支持的 api_format: {api_format!r}，支持: 'openai', 'google', 'grok', 'grok2api', 'newapi'")
+        raise ValueError(
+            f"不支持的 api_format: {api_format!r}，支持: 'openai', 'google', 'flow2api', 'grok', 'grok2api', 'newapi'"
+        )
 
 
 async def _discover_openai(base_url: str | None, api_key: str) -> list[dict]:
@@ -111,6 +115,13 @@ async def _discover_google(base_url: str | None, api_key: str) -> list[dict]:
         return _build_result_list(entries)
 
     return await asyncio.to_thread(_sync)
+
+
+async def _discover_flow2api(base_url: str | None, api_key: str) -> list[dict]:
+    """通过 Gemini 兼容接口发现 Flow2API 模型。"""
+    if not base_url or not base_url.strip():
+        raise ValueError("flow2api 需要 base_url")
+    return await _discover_google(base_url, api_key)
 
 
 async def _discover_grok_rest(base_url: str | None, api_key: str) -> list[dict]:

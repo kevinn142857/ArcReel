@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from lib.db.models.custom_provider import CustomProvider
 
 _VALID_MEDIA_TYPES = {"text", "image", "video"}
-_VALID_API_FORMATS = {"openai", "google", "grok", "grok2api", "newapi"}
+_VALID_API_FORMATS = {"openai", "google", "flow2api", "grok", "grok2api", "newapi"}
 _GROK_VIDEO_MODEL_PREFIXES = ("grok-imagine-video",)
 _JIMENG_IMAGE_MODEL_PREFIX = "jimeng-"
 _JIMENG_VIDEO_MODEL_PREFIXES = ("jimeng-video-", "seedance-")
@@ -59,6 +59,8 @@ def create_custom_backend(
         return _create_openai_backend(provider=provider, model_id=model_id, media_type=media_type)
     elif api_format == "google":
         return _create_google_backend(provider=provider, model_id=model_id, media_type=media_type)
+    elif api_format == "flow2api":
+        return _create_flow2api_backend(provider=provider, model_id=model_id, media_type=media_type)
     elif api_format == "grok":
         return _create_grok_backend(provider=provider, model_id=model_id, media_type=media_type)
     elif api_format == "grok2api":
@@ -191,6 +193,21 @@ def _create_google_backend(
     else:  # video
         delegate = GeminiVideoBackend(api_key=provider.api_key, base_url=base_url, video_model=model_id)
         return CustomVideoBackend(provider_id=pid, delegate=delegate, model=model_id)
+
+
+def _create_flow2api_backend(
+    *,
+    provider: CustomProvider,
+    model_id: str,
+    media_type: str,
+) -> CustomTextBackend | CustomImageBackend | CustomVideoBackend:
+    """创建 Flow2API 格式的后端。
+
+    Flow2API 暴露 Gemini 官方兼容接口，因此统一复用 Gemini delegate。
+    """
+    if not provider.base_url.strip():
+        raise ValueError("flow2api 需要 base_url")
+    return _create_google_backend(provider=provider, model_id=model_id, media_type=media_type)
 
 
 def _create_grok2api_backend(

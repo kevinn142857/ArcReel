@@ -160,6 +160,33 @@ class TestCreateProvider:
         assert len(body["models"]) == 1
         assert body["models"][0]["model_id"] == "kling-v1"
 
+    def test_create_flow2api_provider(self, client: TestClient):
+        """回归: POST /custom-providers 接受 api_format=flow2api。"""
+        resp = client.post(
+            "/api/v1/custom-providers",
+            json={
+                "display_name": "Flow2API Gateway",
+                "api_format": "flow2api",
+                "base_url": "https://flow2api.example.com",
+                "api_key": "sk-flow2api-test-12345",
+                "models": [
+                    {
+                        "model_id": "veo-3",
+                        "display_name": "Veo 3",
+                        "media_type": "video",
+                        "is_default": True,
+                        "is_enabled": True,
+                    },
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["api_format"] == "flow2api"
+        assert body["base_url"] == "https://flow2api.example.com"
+        assert len(body["models"]) == 1
+        assert body["models"][0]["model_id"] == "veo-3"
+
     def test_create_grok_provider(self, client: TestClient):
         resp = client.post(
             "/api/v1/custom-providers",
@@ -536,6 +563,34 @@ class TestDiscoverModels:
         # 确认 api_format 作为 newapi 透传
         assert mock_discover.call_args.kwargs["api_format"] == "newapi"
 
+    def test_discover_flow2api(self, client: TestClient):
+        fake_models = [
+            {
+                "model_id": "veo-3",
+                "display_name": "Veo 3",
+                "media_type": "video",
+                "is_default": True,
+                "is_enabled": True,
+            },
+        ]
+        with patch(
+            "lib.custom_provider.discovery.discover_models",
+            new_callable=AsyncMock,
+            return_value=fake_models,
+        ) as mock_discover:
+            resp = client.post(
+                "/api/v1/custom-providers/discover",
+                json={
+                    "api_format": "flow2api",
+                    "base_url": "https://flow2api.example.com",
+                    "api_key": "sk-flow2api-discover",
+                },
+            )
+        assert resp.status_code == 200
+        assert resp.json()["models"][0]["model_id"] == "veo-3"
+        assert mock_discover.call_args.kwargs["api_format"] == "flow2api"
+        assert mock_discover.call_args.kwargs["base_url"] == "https://flow2api.example.com"
+
     def test_discover_grok(self, client: TestClient):
         fake_models = [
             {
@@ -666,6 +721,25 @@ class TestConnectionTest:
         body = resp.json()
         assert body["success"] is True
         assert body["model_count"] == 10
+
+    def test_flow2api_success(self, client: TestClient):
+        with patch(
+            "server.routers.custom_providers._test_flow2api",
+            return_value=custom_providers.ConnectionTestResponse(success=True, message="连接成功", model_count=6),
+        ) as mock_flow2api_test:
+            resp = client.post(
+                "/api/v1/custom-providers/test",
+                json={
+                    "api_format": "flow2api",
+                    "base_url": "https://flow2api.example.com",
+                    "api_key": "sk-flow2api-conn",
+                },
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["model_count"] == 6
+        mock_flow2api_test.assert_called_once_with("https://flow2api.example.com", "sk-flow2api-conn", ANY)
 
     def test_newapi_success(self, client: TestClient):
         """newapi 的 /v1/models 走 OpenAI 兼容路径，连接测试应通过 _test_openai。"""

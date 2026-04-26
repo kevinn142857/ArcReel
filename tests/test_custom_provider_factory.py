@@ -177,6 +177,60 @@ class TestGoogleFormat:
 
 
 # ---------------------------------------------------------------------------
+# Flow2API format
+# ---------------------------------------------------------------------------
+
+
+class TestFlow2APIFormat:
+    @patch("lib.custom_provider.factory.GeminiTextBackend")
+    def test_text_backend_uses_gemini_delegate(self, mock_cls):
+        provider = _make_provider(api_format="flow2api", base_url="https://flow2api.example.com")
+        result = create_custom_backend(provider=provider, model_id="gemini-3-flash", media_type="text")
+
+        assert isinstance(result, CustomTextBackend)
+        assert result.name == "custom-42"
+        assert result.model == "gemini-3-flash"
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://flow2api.example.com/",
+            model="gemini-3-flash",
+        )
+
+    @patch("lib.custom_provider.factory.GeminiImageBackend")
+    def test_image_backend_uses_gemini_delegate(self, mock_cls):
+        provider = _make_provider(api_format="flow2api", base_url="https://flow2api.example.com/v1beta")
+        result = create_custom_backend(provider=provider, model_id="gemini-3-flash-image", media_type="image")
+
+        assert isinstance(result, CustomImageBackend)
+        assert result.name == "custom-42"
+        assert result.model == "gemini-3-flash-image"
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://flow2api.example.com/",
+            image_model="gemini-3-flash-image",
+        )
+
+    @patch("lib.custom_provider.factory.GeminiVideoBackend")
+    def test_video_backend_uses_gemini_delegate(self, mock_cls):
+        provider = _make_provider(api_format="flow2api", base_url="https://flow2api.example.com")
+        result = create_custom_backend(provider=provider, model_id="veo-3", media_type="video")
+
+        assert isinstance(result, CustomVideoBackend)
+        assert result.name == "custom-42"
+        assert result.model == "veo-3"
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://flow2api.example.com/",
+            video_model="veo-3",
+        )
+
+    def test_requires_base_url(self):
+        provider = _make_provider(api_format="flow2api", base_url="")
+        with pytest.raises(ValueError, match="flow2api 需要 base_url"):
+            create_custom_backend(provider=provider, model_id="gemini-3-flash", media_type="text")
+
+
+# ---------------------------------------------------------------------------
 # Grok format
 # ---------------------------------------------------------------------------
 
